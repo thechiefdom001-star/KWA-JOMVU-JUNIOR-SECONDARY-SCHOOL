@@ -370,7 +370,7 @@ export const Settings = ({ data, setData }) => {
                     </div>
                 </div>
 
-                {/* ===== FEE STRUCTURE AS CARDS - COMPLETELY REBUILT ===== */}
+            
                 <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
                     <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                         <div>
@@ -724,7 +724,7 @@ export const Settings = ({ data, setData }) => {
                 </div>
             `}
 
-            {/* Selective Import Modal (unchanged from original) */}
+        
             ${showImportModal && html`
                 <div class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
                     <div class="bg-white w-full max-w-md rounded-3xl p-8 shadow-2xl animate-in zoom-in-95 duration-200">

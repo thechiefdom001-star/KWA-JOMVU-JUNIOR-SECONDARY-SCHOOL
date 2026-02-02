@@ -101,7 +101,8 @@ const App = () => {
 
     const handleLogin = (e) => {
         e.preventDefault();
-        if (loginUsername === 'admin' && loginPassword === 'admin002') {
+        if (loginUsername === 'admin@kwajomvu
+' && loginPassword === '2023') {
             setIsAdmin(true);
             localStorage.setItem('et_is_admin', 'true');
             setShowLoginModal(false);

@@ -1,5 +1,5 @@
 import { h } from 'preact';
-import { useState, useMemo } from 'preact/hooks';
+import { useState, useMemo, useEffect } from 'preact/hooks';
 import htm from 'htm';
 import { Storage } from '../lib/storage.js';
 
@@ -8,7 +8,16 @@ const html = htm.bind(h);
 export const ResultAnalysis = ({ data, onSelectStudent }) => {
     const [filterTerm, setFilterTerm] = useState('T1');
     const [filterGrade, setFilterGrade] = useState('GRADE 1');
+    const [filterSubject, setFilterSubject] = useState('ALL');
+    const [filterYear, setFilterYear] = useState(data.settings.academicYear || '2025/2026');
     const [searchName, setSearchName] = useState('');
+
+    // Keep filterYear in sync with the active school setting so changing Academic Year applies immediately
+    useEffect(() => {
+        if (data?.settings?.academicYear) {
+            setFilterYear(data.settings.academicYear);
+        }
+    }, [data?.settings?.academicYear]);
 
     const students = (data.students || []).filter(s => s.grade === filterGrade);
     const assessments = data.assessments || [];
@@ -19,7 +28,8 @@ export const ResultAnalysis = ({ data, onSelectStudent }) => {
         return students.map(student => {
             const studentAssessments = assessments.filter(a => 
                 a.studentId === student.id && 
-                a.term === filterTerm
+                a.term === filterTerm &&
+                a.academicYear === filterYear
             );
 
             const subjectAnalysis = subjects.map(subject => {
@@ -77,6 +87,22 @@ export const ResultAnalysis = ({ data, onSelectStudent }) => {
         });
     }, [analysisData, subjects]);
 
+    const topTen = useMemo(() => {
+        const sorted = [...analysisData].sort((a, b) => {
+            if (filterSubject === 'ALL') {
+                return b.overallAverage - a.overallAverage;
+            } else {
+                const aSub = a.subjectAnalysis.find(s => s.subject === filterSubject)?.average || 0;
+                const bSub = b.subjectAnalysis.find(s => s.subject === filterSubject)?.average || 0;
+                return bSub - aSub;
+            }
+        });
+        return sorted.slice(0, 10).filter(s => {
+            if (filterSubject === 'ALL') return s.overallAverage > 0;
+            return (s.subjectAnalysis.find(sub => sub.subject === filterSubject)?.average || 0) > 0;
+        });
+    }, [analysisData, filterSubject]);
+
     return html`
         <div class="space-y-6">
             <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 no-print">
@@ -97,11 +123,27 @@ export const ResultAnalysis = ({ data, onSelectStudent }) => {
             </div>
 
             <!-- Filters -->
-            <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm grid grid-cols-1 md:grid-cols-3 gap-4 no-print">
+            <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 no-print">
                 <div class="space-y-1">
-                    <label class="text-[10px] font-bold text-slate-400 uppercase ml-1">Academic Term</label>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase ml-1">Year</label>
                     <select 
-                        class="w-full p-2.5 bg-slate-50 rounded-xl border-0 focus:ring-2 focus:ring-primary outline-none text-sm font-bold"
+                        class="w-full p-2 bg-slate-50 rounded-lg text-xs font-bold outline-none"
+                        value=${filterYear}
+                        onChange=${e => setFilterYear(e.target.value)}
+                    >
+                        ${(() => {
+                            const baseYear = Number((data.settings?.academicYear || '2025/2026').split('/')[0]);
+                            const startYear = isNaN(baseYear) ? 2025 : baseYear - 2;
+                            return Array.from({ length: 7 }, (_, i) => startYear + i).map(y => html`
+                                <option value="${y}/${y+1}">${y}/${y+1}</option>
+                            `);
+                        })()}
+                    </select>
+                </div>
+                <div class="space-y-1">
+                    <label class="text-[10px] font-bold text-slate-400 uppercase ml-1">Term</label>
+                    <select 
+                        class="w-full p-2 bg-slate-50 rounded-lg text-xs font-bold outline-none"
                         value=${filterTerm}
                         onChange=${e => setFilterTerm(e.target.value)}
                     >
@@ -111,24 +153,66 @@ export const ResultAnalysis = ({ data, onSelectStudent }) => {
                     </select>
                 </div>
                 <div class="space-y-1">
-                    <label class="text-[10px] font-bold text-slate-400 uppercase ml-1">Grade Level</label>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase ml-1">Grade</label>
                     <select 
-                        class="w-full p-2.5 bg-slate-50 rounded-xl border-0 focus:ring-2 focus:ring-primary outline-none text-sm font-bold"
+                        class="w-full p-2 bg-slate-50 rounded-lg text-xs font-bold outline-none"
                         value=${filterGrade}
-                        onChange=${e => setFilterGrade(e.target.value)}
+                        onChange=${e => { setFilterGrade(e.target.value); setFilterSubject('ALL'); }}
                     >
                         ${data.settings.grades.map(g => html`<option value=${g}>${g}</option>`)}
                     </select>
                 </div>
                 <div class="space-y-1">
-                    <label class="text-[10px] font-bold text-slate-400 uppercase ml-1">Search Student</label>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase ml-1">Subject</label>
+                    <select 
+                        class="w-full p-2 bg-slate-50 rounded-lg text-xs font-bold outline-none"
+                        value=${filterSubject}
+                        onChange=${e => setFilterSubject(e.target.value)}
+                    >
+                        <option value="ALL">All Subjects</option>
+                        ${subjects.map(s => html`<option value=${s}>${s}</option>`)}
+                    </select>
+                </div>
+                <div class="space-y-1 col-span-2 md:col-span-1">
+                    <label class="text-[10px] font-bold text-slate-400 uppercase ml-1">Search</label>
                     <input 
                         type="text"
-                        placeholder="Name or Admission No..."
-                        class="w-full p-2.5 bg-slate-50 rounded-xl border-0 focus:ring-2 focus:ring-primary outline-none text-sm"
+                        placeholder="Search student..."
+                        class="w-full p-2 bg-slate-50 rounded-lg text-xs outline-none"
                         value=${searchName}
                         onInput=${e => setSearchName(e.target.value)}
                     />
+                </div>
+            </div>
+
+            <!-- Top 10 Best Students -->
+            <div class="bg-gradient-to-br from-blue-600 to-indigo-700 p-6 rounded-2xl text-white shadow-xl">
+                <div class="flex items-center gap-3 mb-6">
+                    <span class="text-3xl">🏆</span>
+                    <div>
+                        <h3 class="font-black text-lg uppercase leading-tight">Top Performers</h3>
+                        <p class="text-[10px] text-blue-100 font-bold uppercase tracking-widest">
+                            ${filterSubject === 'ALL' ? 'Overall Class Ranking' : `${filterSubject} Excellence`} • ${filterGrade}
+                        </p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+                    ${topTen.map((s, idx) => {
+                        const score = filterSubject === 'ALL' 
+                            ? s.overallAverage 
+                            : (s.subjectAnalysis.find(sub => sub.subject === filterSubject)?.average || 0);
+                        return html`
+                            <div class="bg-white/10 backdrop-blur-sm p-3 rounded-xl border border-white/10 flex items-center gap-3 relative overflow-hidden group">
+                                <span class="text-2xl font-black text-white/20 absolute -right-2 -bottom-2 group-hover:scale-110 transition-transform">${idx + 1}</span>
+                                <div class="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center font-black text-xs shrink-0">${idx + 1}</div>
+                                <div class="min-w-0">
+                                    <p class="font-bold text-xs truncate">${s.name}</p>
+                                    <p class="text-[10px] font-black text-blue-200">${score}%</p>
+                                </div>
+                            </div>
+                        `;
+                    })}
+                    ${topTen.length === 0 && html`<p class="col-span-full text-center py-4 text-sm text-blue-200 opacity-60 italic">No ranking data available for current selection.</p>`}
                 </div>
             </div>
 
@@ -140,7 +224,7 @@ export const ResultAnalysis = ({ data, onSelectStudent }) => {
                 <div class="mt-4 grid grid-cols-3 w-full border-y border-slate-200 py-2 text-[10px] font-bold uppercase">
                     <span>Date: ${new Date().toLocaleDateString()}</span>
                     <span>Students: ${analysisData.length}</span>
-                    <span>Academic Year: 2024</span>
+                    <span>Academic Year: ${filterYear}</span>
                 </div>
             </div>
 
@@ -149,9 +233,9 @@ export const ResultAnalysis = ({ data, onSelectStudent }) => {
                     <thead class="bg-slate-50 border-b border-slate-200">
                         <tr>
                             <th class="px-4 py-4 text-[10px] font-black text-slate-500 uppercase border-r sticky left-0 bg-slate-50 z-10">Student Name</th>
-                            ${subjects.map(s => html`
+                            ${subjects.filter(s => filterSubject === 'ALL' || s === filterSubject).map(s => html`
                                 <th class="px-2 py-4 text-[9px] font-black text-slate-500 uppercase text-center border-r" colspan="1">
-                                    <div class="truncate max-w-[80px] mx-auto">${s}</div>
+                                    <div class="truncate max-w-[150px] mx-auto">${s}</div>
                                     <div class="flex justify-between mt-1 px-1 font-normal text-[7px] text-slate-400">
                                         <span>Opn</span>
                                         <span>Mid</span>
@@ -171,7 +255,7 @@ export const ResultAnalysis = ({ data, onSelectStudent }) => {
                                     ${student.name}
                                     <p class="text-[8px] text-slate-400 font-mono">${student.admissionNo}</p>
                                 </td>
-                                ${student.subjectAnalysis.map(sa => html`
+                                ${student.subjectAnalysis.filter(sa => filterSubject === 'ALL' || sa.subject === filterSubject).map(sa => html`
                                     <td class="px-1 py-3 border-r">
                                         <div class="flex justify-between items-center text-[9px] gap-1 px-1">
                                             <span class="text-slate-400 w-5 text-center">${sa.scores['Opener'] ?? '-'}</span>

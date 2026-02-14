@@ -51,6 +51,30 @@ export const FeesRegister = ({ data }) => {
         };
     };
 
+    const feeColumns = [
+        { key: 'admission', label: 'Admission' },
+        { key: 'diary', label: 'Diary' },
+        { key: 'development', label: 'Development' },
+        { key: 't1', label: 'T1 Tuition' },
+        { key: 't2', label: 'T2 Tuition' },
+        { key: 't3', label: 'T3 Tuition' },
+        { key: 'boarding', label: 'Boarding' },
+        { key: 'breakfast', label: 'Breakfast' },
+        { key: 'lunch', label: 'Lunch' },
+        { key: 'trip', label: 'Trip' },
+        { key: 'bookFund', label: 'Book Fund' },
+        { key: 'caution', label: 'Caution' },
+        { key: 'uniform', label: 'Uniform' },
+        { key: 'studentCard', label: 'School ID' },
+        { key: 'remedial', label: 'Remedials' },
+        { key: 'assessmentFee', label: 'Assessment Fee' },
+        { key: 'projectFee', label: 'Project Fee' },
+        { key: 'activityFees', label: 'Activity Fees' },
+        { key: 'tieAndBadge', label: 'Tie & Badge' },
+        { key: 'academicSupport', label: 'Academic Support' },
+        { key: 'pta', label: 'PTA' }
+    ];
+
     const registerData = students.map(s => {
         const finance = Storage.getStudentFinancials(s, data.payments, data.settings);
         return { ...s, ...finance };

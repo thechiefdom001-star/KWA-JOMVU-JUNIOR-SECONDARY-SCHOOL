@@ -58,7 +58,7 @@ export const Marklist = ({ data, setData }) => {
                 <img src="${data.settings.schoolLogo}" class="w-16 h-16 mb-2 object-contain" alt="Logo" />
                 <h1 class="text-2xl font-black uppercase">${data.settings.schoolName}</h1>
                 <h2 class="text-sm font-bold uppercase text-slate-500 mt-1">Official Class Marklist - ${selectedGrade}</h2>
-                <p class="text-[10px] font-bold text-slate-400 uppercase mt-1">${selectedTerm} | ${selectedExamType} EXAM</p>
+                <p class="text-[10px] font-bold text-slate-400 uppercase mt-1">${selectedTerm} | ${selectedExamType} EXAM • Academic Year: ${data.settings.academicYear}</p>
             </div>
 
             <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-x-auto no-scrollbar">
@@ -90,7 +90,8 @@ export const Marklist = ({ data, setData }) => {
                                             a.studentId === student.id && 
                                             a.subject === subject && 
                                             a.term === selectedTerm && 
-                                            a.examType === selectedExamType
+                                            a.examType === selectedExamType &&
+                                            a.academicYear === data.settings.academicYear
                                         );
                                         return html`
                                             <td class="px-2 py-3 text-[10px] text-center font-bold text-slate-600 border-l">
@@ -132,7 +133,7 @@ export const Marklist = ({ data, setData }) => {
                             <td class="px-4 py-3 text-[10px] uppercase border-r">Column Totals</td>
                             ${subjects.map(subject => {
                                 const subjectScores = students.map(s => {
-                                    const a = data.assessments.find(as => as.studentId === s.id && as.subject === subject && as.term === selectedTerm && as.examType === selectedExamType);
+                                    const a = data.assessments.find(as => as.studentId === s.id && as.subject === subject && as.term === selectedTerm && as.examType === selectedExamType && as.academicYear === data.settings.academicYear);
                                     return a ? Number(a.score) : 0;
                                 });
                                 const total = subjectScores.reduce((a, b) => a + b, 0);
@@ -148,7 +149,7 @@ export const Marklist = ({ data, setData }) => {
                             <td class="px-4 py-3 text-[10px] uppercase border-r">Mean Average</td>
                             ${subjects.map(subject => {
                                 const validScores = students.map(s => {
-                                    const a = data.assessments.find(as => as.studentId === s.id && as.subject === subject && as.term === selectedTerm && as.examType === selectedExamType);
+                                    const a = data.assessments.find(as => as.studentId === s.id && as.subject === subject && as.term === selectedTerm && as.examType === selectedExamType && as.academicYear === data.settings.academicYear);
                                     return a ? Number(a.score) : null;
                                 }).filter(s => s !== null);
                                 const avg = validScores.length > 0 ? Math.round(validScores.reduce((a, b) => a + b, 0) / validScores.length) : 0;

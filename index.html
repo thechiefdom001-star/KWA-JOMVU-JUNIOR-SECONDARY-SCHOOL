@@ -26,19 +26,27 @@
         @media print {
             .no-print { display: none !important; }
             .print-only { display: block !important; }
-            body, html { height: auto !important; overflow: visible !important; }
+            body, html { height: auto !important; overflow: visible !important; background-color: white !important; color: black !important; }
             main { overflow: visible !important; position: static !important; width: 100% !important; margin: 0 !important; padding: 0 !important; }
             #app { height: auto !important; overflow: visible !important; }
             .h-screen { height: auto !important; }
-            .card-shadow { box-shadow: none !important; border: 1px solid #eee !important; }
+            .card-shadow { box-shadow: none !important; border: 1px solid #000 !important; }
             .page-break { page-break-before: always; }
-            .report-page-break { page-break-before: always; border-top: 1px dashed #ccc; padding-top: 2rem; margin-top: 2rem; }
+            .report-page-break { page-break-before: always; border-top: 1px solid #000; padding-top: 2rem; margin-top: 2rem; }
             @media print {
                 .report-page-break { border-top: none; padding-top: 0; margin-top: 0; }
                 .a4-page { width: 210mm; height: 297mm; padding: 10mm; margin: 0 auto; box-sizing: border-box; position: relative; }
                 .a4-container { width: 100%; height: 100%; display: flex; flex-direction: column; }
+                /* Keep printed text legible while allowing color printing where supported */
+                * { color: black !important; border-color: #333 !important; }
+                .text-slate-400, .text-slate-500, .text-slate-300 { color: #000 !important; }
+                .bg-slate-50, .bg-slate-100 { background-color: transparent !important; }
+                /* Allow images to print in color when the printer supports it and center print-only logos */
+                img { filter: none !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                .print-only img { display: block; margin: 0 auto; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
             }
             .max-w-6xl { max-width: 100% !important; }
+            .timetable-grid { display: grid; grid-template-columns: 80px repeat(5, 1fr); }
             * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         }
         .print-only { display: none; }

@@ -38,10 +38,11 @@ export const Assessments = ({ data, setData }) => {
             a.studentId === studentId && 
             a.subject === selectedSubject && 
             a.term === selectedTerm && 
-            a.examType === selectedExamType
+            a.examType === selectedExamType &&
+            a.academicYear === data.settings.academicYear
         );
         const otherAssessments = data.assessments.filter(a => 
-            !(a.studentId === studentId && a.subject === selectedSubject && a.term === selectedTerm && a.examType === selectedExamType)
+            !(a.studentId === studentId && a.subject === selectedSubject && a.term === selectedTerm && a.examType === selectedExamType && a.academicYear === data.settings.academicYear)
         );
         
         let level = existing?.level || 'ME2';
@@ -62,6 +63,7 @@ export const Assessments = ({ data, setData }) => {
             examType: selectedExamType,
             level,
             score,
+            academicYear: data.settings.academicYear,
             date: new Date().toISOString().split('T')[0]
         };
         setData({ ...data, assessments: [...otherAssessments, newAssessment] });

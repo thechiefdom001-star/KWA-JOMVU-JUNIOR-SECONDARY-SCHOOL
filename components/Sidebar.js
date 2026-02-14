@@ -24,6 +24,7 @@ export const Sidebar = ({ currentView, setView, isCollapsed, setCollapsed, isMob
                 { id: 'senior-school', label: 'Senior School', icon: '🏅' },
                 { id: 'assessments', label: 'Assessments', icon: '📝' },
                 { id: 'marklist', label: 'Marklist', icon: '🏆' },
+                { id: 'timetable', label: 'Timetable', icon: '📅' },
                 { id: 'result-analysis', label: 'Result Analysis', icon: '📈' },
             ]
         },
@@ -47,6 +48,7 @@ export const Sidebar = ({ currentView, setView, isCollapsed, setCollapsed, isMob
                 { id: 'staff', label: 'Support Staff', icon: '🛠️' },
                 { id: 'transport', label: 'Transport', icon: '🚌' },
                 { id: 'library', label: 'Library', icon: '📚' },
+                { id: 'archives', label: 'Archives', icon: '🗄️' },
             ]
         },
         { id: 'settings', label: 'Settings', icon: '⚙️' },

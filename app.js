@@ -8,6 +8,7 @@ import { Staff } from './components/Staff.js';
 import { Marklist } from './components/Marklist.js';
 import { Assessments } from './components/Assessments.js';
 import { ResultAnalysis } from './components/ResultAnalysis.js';
+import { Timetable } from './components/Timetable.js';
 import { Fees } from './components/Fees.js';
 import { FeesRegister } from './components/FeesRegister.js';
 import { FeeReminder } from './components/FeeReminder.js';
@@ -15,6 +16,7 @@ import { Transport } from './components/Transport.js';
 import { Library } from './components/Library.js';
 import { Payroll } from './components/Payroll.js';
 import { SeniorSchool } from './components/SeniorSchool.js';
+import { Archives } from './components/Archives.js';
 import { Settings } from './components/Settings.js';
 import { Sidebar } from './components/Sidebar.js';
 import { Storage } from './lib/storage.js';
@@ -38,21 +40,24 @@ const App = () => {
     }, [data]);
 
     useEffect(() => {
+        const ws = window.websim || websim;
+        if (!ws) return;
+
         const initCloudSync = async () => {
             try {
-                const project = await window.websim.getCurrentProject();
+                const project = await ws.getCurrentProject();
                 const remoteData = await Storage.pullFromCloud(project.id);
                 if (remoteData) {
                     setData(prev => Storage.mergeData(prev, remoteData, 'all'));
                 }
             } catch (err) {
-                console.warn("Initial cloud sync skipped");
+                console.warn("Initial cloud sync skipped:", err);
             }
         };
 
         const handleRemoteUpdate = async (event) => {
             const { comment } = event;
-            if (comment.raw_content.includes('[DATA_SYNC]')) {
+            if (comment && comment.raw_content && comment.raw_content.includes('[DATA_SYNC]')) {
                 const match = comment.raw_content.match(/\[DATA_SYNC\]\s+(https?:\/\/[^\s\)]+)/);
                 if (match && match[1]) {
                     setIsSyncing(true);
@@ -70,11 +75,28 @@ const App = () => {
         };
 
         initCloudSync();
-        window.websim.addEventListener('comment:created', handleRemoteUpdate);
-        return () => window.websim.removeEventListener('comment:created', handleRemoteUpdate);
+        ws.addEventListener('comment:created', handleRemoteUpdate);
+        return () => ws.removeEventListener('comment:created', handleRemoteUpdate);
+    }, []);
+
+    // Listen for a restore event dispatched by Archives (or anywhere)
+    useEffect(() => {
+        const handler = (e) => {
+            if (e?.detail?.restored) {
+                setData(e.detail.restored);
+                alert('Archived year restored into active data.');
+            }
+        };
+        window.addEventListener('edutrack:restore', handler);
+        return () => window.removeEventListener('edutrack:restore', handler);
     }, []);
 
     const handleCloudPush = async () => {
+        const ws = window.websim || websim;
+        if (!ws) {
+            alert("Cloud services are currently unavailable. Please try refreshing the page.");
+            return;
+        }
         setIsSyncing(true);
         const result = await Storage.pushToCloud(data);
         if (result && result.error) {
@@ -101,7 +123,7 @@ const App = () => {
 
     const handleLogin = (e) => {
         e.preventDefault();
-        if (loginUsername === 'admin@kwajomvu' && loginPassword === '2030') {
+        if (loginUsername === 'admin' && loginPassword === 'admin002') {
             setIsAdmin(true);
             localStorage.setItem('et_is_admin', 'true');
             setShowLoginModal(false);
@@ -255,6 +277,7 @@ const App = () => {
                     <${SeniorSchool} data=${data} setData=${setData} />
                 </div>
             `;
+            case 'timetable': return html`<${Timetable} data=${data} setData=${setData} />`;
             case 'result-analysis': return html`
                 <div class="space-y-4">
                     <div class="flex justify-end"><${AcademicTransferUI} type="academic-full" /></div>
@@ -267,6 +290,7 @@ const App = () => {
             case 'transport': return html`<${Transport} data=${data} setData=${setData} />`;
             case 'library': return html`<${Library} data=${data} setData=${setData} />`;
             case 'payroll': return html`<${Payroll} data=${data} setData=${setData} />`;
+            case 'archives': return html`<${Archives} data=${data} />`;
             case 'settings': return html`<${Settings} data=${data} setData=${setData} />`;
             case 'student-detail': return html`<${StudentDetail} student=${selectedStudent} data=${data} setData=${setData} onBack=${() => setView('students')} />`;
             default: return html`<${Dashboard} data=${data} />`;
@@ -626,7 +650,7 @@ const StudentDetail = ({ student, data, setData, onBack, isBatch = false }) => {
                             <label class="text-[10px] font-bold text-slate-500 uppercase no-print">Class Teacher's Overall Comment</label>
                             <div class="p-3 bg-slate-50 rounded-xl border border-slate-100 print:bg-white print:border-0 print:p-0">
                                 <textarea 
-                                    class="w-full bg-transparent border-0 focus:ring-0 text-xs italic outline-none no-print min-h-[60px]" 
+                                    class="w-full bg-transparent border-0 focus:ring-0 text-xs italic outline-none no-print min-h-[40px]" 
                                     placeholder="Enter teacher comments..."
                                     value=${remark.teacher}
                                     onInput=${(e) => handleRemarkChange('teacher', e.target.value)}
@@ -635,17 +659,7 @@ const StudentDetail = ({ student, data, setData, onBack, isBatch = false }) => {
                                     <span class="font-bold uppercase text-[9px] block">Class Teacher's Remarks:</span>
                                     ${remark.teacher || '____________________________________________________________________________________'}
                                 </div>
-                                <div class="hidden print:flex justify-between items-end mt-2">
-                                    <div class="text-center w-40">
-                                        <div class="h-4 flex items-center justify-center mb-0.5">
-                                            <p class="text-[10px] font-bold">${classTeacher ? classTeacher.name : '________________'}</p>
-                                        </div>
-                                        <div class="h-6 mb-0.5 flex items-end justify-center">
-                                            <img src="${settings.clerkSignature || settings.schoolLogo}" class="h-full ${settings.clerkSignature ? '' : 'opacity-10 grayscale'}" />
-                                        </div>
-                                        <div class="border-t border-black pt-0.5 text-[8px] font-bold uppercase">Class Teacher Signature</div>
-                                    </div>
-                                </div>
+                               
                             </div>
                         </div>
 
@@ -653,7 +667,7 @@ const StudentDetail = ({ student, data, setData, onBack, isBatch = false }) => {
                             <label class="text-[10px] font-bold text-slate-500 uppercase no-print">Principal's Overall Comment</label>
                             <div class="p-3 bg-slate-50 rounded-xl border border-slate-100 print:bg-white print:border-0 print:p-0">
                                 <textarea 
-                                    class="w-full bg-transparent border-0 focus:ring-0 text-xs italic outline-none no-print min-h-[60px]" 
+                                    class="w-full bg-transparent border-0 focus:ring-0 text-xs italic outline-none no-print min-h-[40px]" 
                                     placeholder="Enter principal comments..."
                                     value=${remark.principal}
                                     onInput=${(e) => handleRemarkChange('principal', e.target.value)}
@@ -661,14 +675,6 @@ const StudentDetail = ({ student, data, setData, onBack, isBatch = false }) => {
                                 <div class="hidden print:block text-[11px] border-b border-dotted border-black pb-0.5 mb-1">
                                     <span class="font-bold uppercase text-[9px] block">Principal's Remarks:</span>
                                     ${remark.principal || '____________________________________________________________________________________'}
-                                </div>
-                                <div class="hidden print:flex justify-between items-end mt-2">
-                                    <div class="text-center w-40">
-                                        <div class="h-6 mb-0.5 flex items-end justify-center">
-                                            <img src="${settings.principalSignature || settings.schoolLogo}" class="h-full ${settings.principalSignature ? '' : 'opacity-20 grayscale'}" />
-                                        </div>
-                                        <div class="border-t border-black pt-0.5 text-[8px] font-bold uppercase">Principal Signature & Stamp</div>
-                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -684,56 +690,56 @@ const StudentDetail = ({ student, data, setData, onBack, isBatch = false }) => {
                                     Subject Performance Trend (Linear Analysis)
                                 </h3>
                                 
-                                <div class="relative h-48 w-full mt-6 mb-12 px-12">
-                                    <!-- SVG Line Graph -->
-                                    <svg viewBox="0 0 1000 400" class="w-full h-full overflow-visible">
+                                <div class="relative h-40 w-full mt-4 mb-8 px-8">
+                                    <!-- SVG Line Graph (compact for printing) -->
+                                    <svg viewBox="0 0 1000 320" class="w-full h-full overflow-visible">
                                         <!-- Grid Lines -->
                                         ${[0, 25, 50, 75, 100].map(val => {
-                                            const y = 400 - (val * 4);
+                                            const y = 320 - (val * 3.2);
                                             return html`
                                                 <line x1="0" y1=${y} x2="1000" y2=${y} stroke="#f1f5f9" stroke-width="1" />
-                                                <text x="-40" y=${y + 4} class="text-[20px] fill-slate-400 font-bold print:fill-black">${val}%</text>
+                                                <text x="-40" y=${y + 4} class="text-[14px] fill-slate-400 font-bold print:fill-black">${val}%</text>
                                             `;
                                         })}
                                         
                                         <!-- X-Axis Labels & Points -->
                                         ${subjects.map((subject, idx) => {
-                                            const x = (idx / (subjects.length - 1)) * 1000;
+                                            const x = subjects.length === 1 ? 500 : (idx / Math.max(1, subjects.length - 1)) * 1000;
                                             const avg = subjectAverages[idx] || 0;
-                                            const y = 400 - (avg * 4);
+                                            const y = 320 - (avg * 3.2);
                                             return html`
                                                 <text 
                                                     x=${x} 
-                                                    y="440" 
+                                                    y="360" 
                                                     text-anchor="middle" 
-                                                    class="text-[18px] font-black fill-slate-500 uppercase print:fill-black"
-                                                    transform=${`rotate(35, ${x}, 440)`}
+                                                    class="text-[12px] font-black fill-slate-500 uppercase print:fill-black"
+                                                    transform=${`rotate(30, ${x}, 360)`}
                                                 >
-                                                    ${subject.length > 15 ? subject.substring(0, 12) + '...' : subject}
+                                                    ${subject.length > 12 ? subject.substring(0, 10) + '...' : subject}
                                                 </text>
-                                                <circle cx=${x} cy=${y} r="8" class="fill-blue-600 print:fill-black" />
-                                                <text x=${x} y=${y - 15} text-anchor="middle" class="text-[20px] font-black fill-blue-800 print:fill-black">${avg}%</text>
+                                                <circle cx=${x} cy=${y} r="6" class="fill-blue-600 print:fill-black" />
+                                                <text x=${x} y=${y - 12} text-anchor="middle" class="text-[12px] font-black fill-blue-800 print:fill-black">${avg}%</text>
                                             `;
                                         })}
 
                                         <!-- The Trend Line -->
                                         <path 
                                             d=${subjects.map((_, idx) => {
-                                                const x = (idx / (subjects.length - 1)) * 1000;
+                                                const x = subjects.length === 1 ? 500 : (idx / Math.max(1, subjects.length - 1)) * 1000;
                                                 const avg = subjectAverages[idx] || 0;
-                                                const y = 400 - (avg * 4);
+                                                const y = 320 - (avg * 3.2);
                                                 return `${idx === 0 ? 'M' : 'L'} ${x} ${y}`;
                                             }).join(' ')}
                                             fill="none" 
                                             stroke="#2563eb" 
-                                            stroke-width="4" 
+                                            stroke-width="3" 
                                             stroke-linecap="round" 
                                             stroke-linejoin="round"
                                             class="print:stroke-black"
                                         />
                                     </svg>
                                     
-                                    <!-- Competency Zones Labels -->
+                                    <!-- Competency Zones Labels (subtle) -->
                                     <div class="absolute left-0 top-0 h-full w-full pointer-events-none flex flex-col justify-between py-1 opacity-20 print:hidden">
                                         <div class="border-t-2 border-green-500 w-full h-0"></div>
                                         <div class="border-t-2 border-blue-500 w-full h-0"></div>

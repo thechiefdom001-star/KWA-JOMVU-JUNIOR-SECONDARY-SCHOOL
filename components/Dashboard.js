@@ -13,7 +13,7 @@ export const Dashboard = ({ data }) => {
     const totalStudents = students.length;
     const totalTeachers = (data?.teachers || []).length;
     const totalStaff = (data?.staff || []).length;
-    const totalFeesCollected = payments.reduce((sum, p) => sum + Number(p.amount), 0);
+    const totalFeesCollected = payments.filter(p => p.academicYear === settings.academicYear).reduce((sum, p) => sum + Number(p.amount), 0);
     const expectedFees = students.reduce((sum, s) => {
         const fin = Storage.getStudentFinancials(s, data.payments, settings);
         return sum + fin.totalDue;
@@ -24,7 +24,7 @@ export const Dashboard = ({ data }) => {
     const feesPerGrade = (settings.grades || []).map(grade => {
         const gradeStudentIds = students.filter(s => s.grade === grade).map(s => s.id);
         const total = payments
-            .filter(p => gradeStudentIds.includes(p.studentId))
+            .filter(p => gradeStudentIds.includes(p.studentId) && p.academicYear === settings.academicYear)
             .reduce((sum, p) => sum + Number(p.amount), 0);
         return { grade, total };
     });

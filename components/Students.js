@@ -2,70 +2,38 @@ import { h } from 'preact';
 import { useState } from 'preact/hooks';
 import htm from 'htm';
 import { Storage } from '../lib/storage.js';
+
 const html = htm.bind(h);
 
 export const Students = ({ data, setData, onSelectStudent }) => {
     const [showAdd, setShowAdd] = useState(false);
     const [filterGrade, setFilterGrade] = useState('ALL');
     const [filterFinance, setFilterFinance] = useState('ALL');
+    const feeOptions = [
+        { key: 'admission', label: 'Admission' }, { key: 'diary', label: 'Diary' }, { key: 'development', label: 'Development' },
+        { key: 't1', label: 'T1 Tuition' }, { key: 't2', label: 'T2 Tuition' }, { key: 't3', label: 'T3 Tuition' },
+        { key: 'boarding', label: 'Boarding' }, { key: 'breakfast', label: 'Breakfast' }, { key: 'lunch', label: 'Lunch' }, 
+        { key: 'trip', label: 'Trip' }, { key: 'bookFund', label: 'Books' }, { key: 'caution', label: 'Caution' }, 
+        { key: 'uniform', label: 'Uniform' }, { key: 'studentCard', label: 'School ID' }, { key: 'remedial', label: 'Remedials' },
+        { key: 'assessmentFee', label: 'Assessment Fee' }, { key: 'projectFee', label: 'Project Fee' },
+        { key: 'activityFees', label: 'Activity Fees' }, { key: 'tieAndBadge', label: 'Tie & Badge' }, { key: 'academicSupport', label: 'Academic Support' },
+        { key: 'pta', label: 'PTA' }
+    ];
+
     const [editingId, setEditingId] = useState(null);
     const [newStudent, setNewStudent] = useState({ 
         name: '', 
         grade: data.settings.grades[0] || 'GRADE 1', 
         category: 'Normal',
         admissionNo: '',
+        admissionDate: new Date().toISOString().slice(0,10),
         assessmentNo: '',
         upiNo: '',
         parentContact: '',
         stream: '',
         previousArrears: 0,
-        selectedFees: []
+        selectedFees: ['t1', 't2', 't3', 'admission', 'diary', 'development', 'pta'] 
     });
-
-    // DYNAMIC FEE OPTIONS - Pull from actual fee structure
-    const getDynamicFeeOptions = (grade) => {
-        const structure = data.settings.feeStructures?.find(f => f.grade === grade);
-        if (!structure) return [];
-        
-        // Get all keys except grade/id, filter to only show items with amounts > 0
-        return Object.keys(structure)
-            .filter(key => !['grade', 'id'].includes(key) && structure[key] > 0)
-            .map(key => ({
-                key: key,
-                label: formatFeeLabel(key),
-                category: getFeeCategory(key)
-            }));
-    };
-
-    const formatFeeLabel = (key) => {
-        const labels = {
-            'admission': 'Admission Fee',
-            'diary': 'School Diary',
-            'development': 'Development Fee',
-            't1': 'Term 1 Tuition',
-            't2': 'Term 2 Tuition',
-            't3': 'Term 3 Tuition',
-            'boarding': 'Boarding Fee',
-            'breakfast': 'Breakfast',
-            'lunch': 'Lunch',
-            'trip': 'Educational Trip',
-            'bookFund': 'Book Fund',
-            'caution': 'Caution Money',
-            'uniform': 'Uniform',
-            'studentCard': 'Student ID Card',
-            'remedial': 'Remedial Classes',
-            'assessmentFee': 'Examination Fee',
-            'projectFee': 'Project Fee'
-        };
-        return labels[key] || key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
-    };
-
-    const getFeeCategory = (key) => {
-        if (['admission', 't1', 't2', 't3'].includes(key)) return 'tuition';
-        if (['diary', 'development', 'bookFund', 'caution', 'studentCard', 'assessmentFee'].includes(key)) return 'mandatory';
-        if (['boarding', 'breakfast', 'lunch', 'trip', 'uniform', 'remedial', 'projectFee'].includes(key)) return 'optional';
-        return 'misc';
-    };
 
     const handleAdd = (e) => {
         e.preventDefault();
@@ -92,7 +60,7 @@ export const Students = ({ data, setData, onSelectStudent }) => {
             parentContact: '',
             stream: '',
             previousArrears: 0,
-            selectedFees: []
+            selectedFees: ['t1', 't2', 't3', 'admission', 'diary', 'development', 'pta']
         });
         setEditingId(null);
     };
@@ -124,6 +92,7 @@ export const Students = ({ data, setData, onSelectStudent }) => {
                     ...s,
                     grade: nextGrade,
                     previousArrears: financials.balance,
+                    // We don't reset selectedFees, user might want to edit them
                 };
             }
             return s;
@@ -147,57 +116,20 @@ export const Students = ({ data, setData, onSelectStudent }) => {
         setNewStudent({ ...newStudent, selectedFees: updated });
     };
 
-    const toggleAllFees = (category) => {
-        const categoryFees = getDynamicFeeOptions(newStudent.grade).filter(opt => opt.category === category).map(opt => opt.key);
-        const current = newStudent.selectedFees || [];
-        const allSelected = categoryFees.every(key => current.includes(key));
-        
-        if (allSelected) {
-            // Deselect all in category
-            const updated = current.filter(k => !categoryFees.includes(k));
-            setNewStudent({ ...newStudent, selectedFees: updated });
-        } else {
-            // Select all in category
-            const updated = [...new Set([...current, ...categoryFees])];
-            setNewStudent({ ...newStudent, selectedFees: updated });
-        }
-    };
-
-    const toggleAll = () => {
-        const allKeys = getDynamicFeeOptions(newStudent.grade).map(opt => opt.key);
-        if (newStudent.selectedFees.length === allKeys.length) {
-            setNewStudent({ ...newStudent, selectedFees: [] });
-        } else {
-            setNewStudent({ ...newStudent, selectedFees: allKeys });
-        }
-    };
-
-    const calculateStudentFees = (student) => {
-        const feeStructure = data.settings.feeStructures?.find(f => f.grade === student.grade);
-        if (!feeStructure) return { totalDue: 0, totalPaid: 0, balance: 0 };
-
-        const selectedKeys = student.selectedFees || ['t1', 't2', 't3'];
-        
-        const totalDue = (Number(student.previousArrears) || 0) + selectedKeys.reduce((sum, key) => sum + (feeStructure[key] || 0), 0);
-        const totalPaid = (data.payments || []).filter(p => p.studentId === student.id).reduce((sum, p) => sum + Number(p.amount), 0);
-
-        return {
-            totalDue,
-            totalPaid,
-            balance: totalDue - totalPaid
-        };
-    };
-
     const filteredStudents = (data.students || []).filter(s => {
         const matchesGrade = filterGrade === 'ALL' || s.grade === filterGrade;
         
         if (filterFinance === 'ALL') return matchesGrade;
 
-        const finance = calculateStudentFees(s);
+        const feeStructure = data.settings.feeStructures?.find(f => f.grade === s.grade);
+        const selectedKeys = s.selectedFees || ['t1', 't2', 't3'];
+        const totalDue = (Number(s.previousArrears) || 0) + (feeStructure ? selectedKeys.reduce((sum, key) => sum + (feeStructure[key] || 0), 0) : 0);
+        const totalPaid = (data.payments || []).filter(p => p.studentId === s.id).reduce((sum, p) => sum + Number(p.amount), 0);
+        const balance = totalDue - totalPaid;
 
-        if (filterFinance === 'FULL') return matchesGrade && finance.balance <= 0 && finance.totalDue > 0;
-        if (filterFinance === 'HALF') return matchesGrade && finance.totalPaid >= (finance.totalDue / 2) && finance.balance > 0;
-        if (filterFinance === 'ARREARS') return matchesGrade && finance.balance > 0;
+        if (filterFinance === 'FULL') return matchesGrade && balance <= 0 && totalDue > 0;
+        if (filterFinance === 'HALF') return matchesGrade && totalPaid >= (totalDue / 2) && balance > 0;
+        if (filterFinance === 'ARREARS') return matchesGrade && balance > 0;
         
         return matchesGrade;
     });
@@ -241,7 +173,7 @@ export const Students = ({ data, setData, onSelectStudent }) => {
             <div class="print-only mb-6 flex flex-col items-center text-center">
                 <img src="${data.settings.schoolLogo}" class="w-16 h-16 mb-2 object-contain" alt="Logo" />
                 <h1 class="text-2xl font-black uppercase">${data.settings.schoolName}</h1>
-                <h2 class="text-sm font-bold uppercase text-slate-500 mt-1">Class Register: ${filterGrade === 'ALL' ? 'All Students' : filterGrade}</h2>
+                <h2 class="text-sm font-bold uppercase text-slate-500 mt-1">Class Register: ${filterGrade === 'ALL' ? 'All Students' : filterGrade} (${data.settings.academicYear})</h2>
                 <p class="text-[10px] text-slate-400 mt-1">Printed on ${new Date().toLocaleDateString()}</p>
             </div>
 
@@ -266,6 +198,15 @@ export const Students = ({ data, setData, onSelectStudent }) => {
                                 class="w-full p-3 bg-slate-50 rounded-lg border-0 focus:ring-2 focus:ring-blue-500 outline-none"
                                 value=${newStudent.admissionNo}
                                 onInput=${(e) => setNewStudent({...newStudent, admissionNo: e.target.value})}
+                            />
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-bold text-slate-400 uppercase ml-1">Admission Date</label>
+                            <input 
+                                type="date"
+                                class="w-full p-3 bg-slate-50 rounded-lg border-0 focus:ring-2 focus:ring-blue-500 outline-none font-bold"
+                                value=${newStudent.admissionDate}
+                                onChange=${(e) => setNewStudent({...newStudent, admissionDate: e.target.value})}
                             />
                         </div>
                         <div class="space-y-1">
@@ -337,100 +278,27 @@ export const Students = ({ data, setData, onSelectStudent }) => {
                             />
                         </div>
                     </div>
-                    
                     <div class="space-y-2 pt-2 border-t border-slate-100">
                         <label class="text-[10px] font-bold text-slate-400 uppercase ml-1">Applicable Fee Items (Fee Profile)</label>
-                        <p class="text-[10px] text-slate-500">Selected grade: <span class="font-bold">${newStudent.grade}</span> | ${getDynamicFeeOptions(newStudent.grade).length} fee items available</p>
-                        
-                        <!-- Select All / Deselect All -->
-                        <div class="flex items-center justify-between bg-slate-100 p-3 rounded-lg mb-3">
-                            <span class="text-[10px] font-bold text-slate-700 uppercase">Quick Actions</span>
-                            <div class="flex gap-2">
-                                <button 
-                                    type="button"
-                                    onClick=${toggleAll}
-                                    class="text-[9px] px-3 py-1 bg-blue-500 text-white rounded font-bold hover:bg-blue-600"
-                                >
-                                    ${newStudent.selectedFees.length === getDynamicFeeOptions(newStudent.grade).length ? 'Deselect All' : 'Select All'}
-                                </button>
-                                <button 
-                                    type="button"
-                                    onClick=${() => toggleAllFees('tuition')}
-                                    class="text-[9px] px-3 py-1 bg-green-500 text-white rounded font-bold hover:bg-green-600"
-                                >
-                                    Tuition
-                                </button>
-                                <button 
-                                    type="button"
-                                    onClick=${() => toggleAllFees('mandatory')}
-                                    class="text-[9px] px-3 py-1 bg-purple-500 text-white rounded font-bold hover:bg-purple-600"
-                                >
-                                    Mandatory
-                                </button>
-                                <button 
-                                    type="button"
-                                    onClick=${() => toggleAllFees('optional')}
-                                    class="text-[9px] px-3 py-1 bg-orange-500 text-white rounded font-bold hover:bg-orange-600"
-                                >
-                                    Optional
-                                </button>
-                            </div>
+                        <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2">
+                            ${feeOptions.map(opt => html`
+                                <label key=${opt.key} class=${`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors ${
+                                    (newStudent.selectedFees || []).includes(opt.key) 
+                                        ? 'bg-blue-50 border-blue-200 text-blue-700' 
+                                        : 'bg-white border-slate-100 text-slate-400'
+                                }`}>
+                                    <input 
+                                        type="checkbox" 
+                                        class="hidden"
+                                        checked=${(newStudent.selectedFees || []).includes(opt.key)}
+                                        onChange=${() => toggleFee(opt.key)}
+                                    />
+                                    <span class="text-[10px] font-bold uppercase truncate">${opt.label}</span>
+                                </label>
+                            `)}
                         </div>
-                        
-                        <!-- Organized by Category -->
-                        <div class="space-y-3">
-                            ${['tuition', 'mandatory', 'optional', 'misc'].map(category => {
-                                const categoryItems = getDynamicFeeOptions(newStudent.grade).filter(opt => opt.category === category);
-                                if (categoryItems.length === 0) return null;
-                                
-                                const categoryNames = {
-                                    'tuition': '🎓 Tuition & Admission',
-                                    'mandatory': '✅ Mandatory Charges',
-                                    'optional': '⭐ Optional Services',
-                                    'misc': '📦 Miscellaneous'
-                                };
-                                
-                                return html`
-                                    <div class="space-y-2">
-                                        <div class="flex items-center gap-2">
-                                            <span class="text-[10px] font-bold text-slate-500 uppercase">${categoryNames[category]}</span>
-                                            <span class="text-[9px] bg-slate-200 text-slate-600 px-2 py-0.5 rounded">${categoryItems.length} items</span>
-                                        </div>
-                                        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                                            ${categoryItems.map(opt => html`
-                                                <label 
-                                                    key=${opt.key} 
-                                                    class=${`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-all ${
-                                                        newStudent.selectedFees.includes(opt.key) 
-                                                            ? 'bg-blue-50 border-blue-300 text-blue-700 shadow-sm' 
-                                                            : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'
-                                                    }`}
-                                                >
-                                                    <input 
-                                                        type="checkbox" 
-                                                        class="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                                                        checked=${newStudent.selectedFees.includes(opt.key)}
-                                                        onChange=${() => toggleFee(opt.key)}
-                                                    />
-                                                    <div class="flex-1">
-                                                        <span class="text-[9px] font-bold uppercase block">${opt.label}</span>
-                                                    </div>
-                                                </label>
-                                            `)}
-                                        </div>
-                                    </div>
-                                `;
-                            })}
-                        </div>
-                        
-                        ${getDynamicFeeOptions(newStudent.grade).length === 0 && html`
-                            <p class="text-[10px] text-orange-500 italic p-2 bg-orange-50 rounded-lg">
-                                ⚠️ No fees configured for this grade. Go to Settings → Fee Structure to add fees.
-                            </p>
-                        `}
                     </div>
-                    
-                    <button class="w-full bg-slate-800 text-white py-3 rounded-xl font-bold hover:bg-slate-900">
+                    <button class="w-full bg-slate-800 text-white py-3 rounded-xl font-bold">
                         ${editingId ? 'Update Student Information' : 'Register Student'}
                     </button>
                 </form>
@@ -442,6 +310,7 @@ export const Students = ({ data, setData, onSelectStudent }) => {
                         <tr>
                             <th class="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase">Name</th>
                             <th class="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase">Adm No</th>
+                            <th class="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase">Adm Date</th>
                             <th class="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase">UPI No</th>
                             <th class="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase">Assess No</th>
                             <th class="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase">Parent Contact</th>
@@ -457,6 +326,7 @@ export const Students = ({ data, setData, onSelectStudent }) => {
                                     <div class="text-[9px] text-slate-400 uppercase">${student.stream || 'No Stream'}</div>
                                 </td>
                                 <td class="px-6 py-4 text-slate-500 text-sm font-mono">${student.admissionNo}</td>
+                                <td class="px-6 py-4 text-slate-500 text-xs font-mono">${student.admissionDate || '-'}</td>
                                 <td class="px-6 py-4 text-slate-500 text-xs font-mono">${student.upiNo || '-'}</td>
                                 <td class="px-6 py-4 text-slate-500 text-xs font-mono">${student.assessmentNo || '-'}</td>
                                 <td class="px-6 py-4 text-slate-700 text-xs font-bold">${student.parentContact || '-'}</td>

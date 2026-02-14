@@ -11,52 +11,32 @@ export const Fees = ({ data, setData }) => {
     const [filterGrade, setFilterGrade] = useState('ALL');
     const [paymentItems, setPaymentItems] = useState({});
     const [receipt, setReceipt] = useState(null);
-    const [showFeeManager, setShowFeeManager] = useState(false);
-    const [editingFeeItem, setEditingFeeItem] = useState(null);
-    const [newFeeItem, setNewFeeItem] = useState({ key: '', label: '', defaultAmount: 0 });
-    const [selectedGradeForFees, setSelectedGradeForFees] = useState(data.settings.grades[0] || 'GRADE 1');
 
-    // Enhanced fee columns with categories and visibility control
-    const feeCategories = [
-        { 
-            id: 'tuition', 
-            name: 'Tuition & Admission', 
-            items: [
-                { key: 'admission', label: 'Admission Fee', category: 'tuition' },
-                { key: 't1', label: 'Term 1 Tuition', category: 'tuition' },
-                { key: 't2', label: 'Term 2 Tuition', category: 'tuition' },
-                { key: 't3', label: 'Term 3 Tuition', category: 'tuition' },
-            ]
-        },
-        { 
-            id: 'mandatory', 
-            name: 'Mandatory Charges', 
-            items: [
-                { key: 'diary', label: 'School Diary', category: 'mandatory' },
-                { key: 'development', label: 'Development Fee', category: 'mandatory' },
-                { key: 'bookFund', label: 'Book Fund', category: 'mandatory' },
-                { key: 'caution', label: 'Caution Money', category: 'mandatory' },
-                { key: 'studentCard', label: 'Student ID Card', category: 'mandatory' },
-                { key: 'assessmentFee', label: 'Examination Fee', category: 'mandatory' },
-            ]
-        },
-        { 
-            id: 'optional', 
-            name: 'Optional Services', 
-            items: [
-                { key: 'boarding', label: 'Boarding Fee', category: 'optional' },
-                { key: 'breakfast', label: 'Breakfast', category: 'optional' },
-                { key: 'lunch', label: 'Lunch', category: 'optional' },
-                { key: 'trip', label: 'Educational Trip', category: 'optional' },
-                { key: 'uniform', label: 'Uniform', category: 'optional' },
-                { key: 'remedial', label: 'Remedial Classes', category: 'optional' },
-                { key: 'projectFee', label: 'Project Fee', category: 'optional' },
-            ]
-        }
+    const feeColumns = [
+        { key: 'previousArrears', label: 'Arrears B/F' },
+        { key: 'admission', label: 'Admission' },
+        { key: 'diary', label: 'Diary' },
+        { key: 'development', label: 'Development' },
+        { key: 't1', label: 'T1 Tuition' },
+        { key: 't2', label: 'T2 Tuition' },
+        { key: 't3', label: 'T3 Tuition' },
+        { key: 'boarding', label: 'Boarding' },
+        { key: 'breakfast', label: 'Breakfast' },
+        { key: 'lunch', label: 'Lunch' },
+        { key: 'trip', label: 'Trip' },
+        { key: 'bookFund', label: 'Book Fund' },
+        { key: 'caution', label: 'Caution' },
+        { key: 'uniform', label: 'Uniform' },
+        { key: 'studentCard', label: 'School ID' },
+        { key: 'remedial', label: 'Remedials' },
+        { key: 'assessmentFee', label: 'Assessment Fee' },
+        { key: 'projectFee', label: 'Project Fee' },
+        { key: 'activityFees', label: 'Activity Fees' },
+        { key: 'tieAndBadge', label: 'Tie & Badge' },
+        { key: 'academicSupport', label: 'Academic Support' },
+        { key: 'pta', label: 'PTA' }
     ];
 
-    // Flatten all fee items for easy access
-    const allFeeItems = feeCategories.flatMap(cat => cat.items);
     const terms = ['T1', 'T2', 'T3'];
 
     const student = data.students.find(s => s.id === selectedStudentId);
@@ -66,91 +46,6 @@ export const Fees = ({ data, setData }) => {
         setPaymentItems({});
     }, [selectedStudentId]);
 
-    // FEE ITEM MANAGEMENT FUNCTIONS
-    const handleAddFeeItem = () => {
-        if (!newFeeItem.key || !newFeeItem.label) {
-            alert('Please enter both key and label');
-            return;
-        }
-
-        // Add to all categories (for new items)
-        const updatedStructures = data.settings.feeStructures.map(structure => ({
-            ...structure,
-            [newFeeItem.key]: newFeeItem.defaultAmount || 0
-        }));
-
-        // Add to fee items list if not already exists
-        const itemExists = allFeeItems.some(item => item.key === newFeeItem.key);
-        if (!itemExists) {
-            // In a real app, you'd update the feeCategories structure
-            // For now, we'll just add to the first category
-            feeCategories[0].items.push({
-                key: newFeeItem.key,
-                label: newFeeItem.label,
-                category: feeCategories[0].id
-            });
-        }
-
-        setData({
-            ...data,
-            settings: {
-                ...data.settings,
-                feeStructures: updatedStructures
-            }
-        });
-
-        setNewFeeItem({ key: '', label: '', defaultAmount: 0 });
-        alert(`Fee item "${newFeeItem.label}" added successfully!`);
-    };
-
-    const handleUpdateFeeAmount = (grade, key, amount) => {
-        const updatedStructures = data.settings.feeStructures.map(structure => 
-            structure.grade === grade 
-                ? { ...structure, [key]: Number(amount) }
-                : structure
-        );
-        setData({
-            ...data,
-            settings: { ...data.settings, feeStructures: updatedStructures }
-        });
-    };
-
-    const handleDeleteFeeItem = (key) => {
-        if (!confirm(`Delete fee item "${key}"? This will remove it from all grade structures.`)) return;
-        
-        const updatedStructures = data.settings.feeStructures.map(structure => {
-            const newStructure = { ...structure };
-            delete newStructure[key];
-            return newStructure;
-        });
-
-        setData({
-            ...data,
-            settings: {
-                ...data.settings,
-                feeStructures: updatedStructures
-            }
-        });
-    };
-
-    const toggleFeeItemForStudent = (key) => {
-        if (!student) return;
-        
-        const currentSelected = student.selectedFees || ['t1', 't2', 't3'];
-        const updatedSelected = currentSelected.includes(key)
-            ? currentSelected.filter(k => k !== key)
-            : [...currentSelected, key];
-        
-        const updatedStudents = data.students.map(s =>
-            s.id === student.id
-                ? { ...s, selectedFees: updatedSelected }
-                : s
-        );
-        
-        setData({ ...data, students: updatedStudents });
-    };
-
-    // PAYMENT HANDLING FUNCTIONS (unchanged from original)
     const handleItemInput = (key, val) => {
         setPaymentItems({ ...paymentItems, [key]: Number(val) });
     };
@@ -172,6 +67,7 @@ export const Fees = ({ data, setData }) => {
             amount: totalAmount,
             items: { ...paymentItems },
             term: selectedTerm,
+            academicYear: data.settings.academicYear,
             date: new Date().toLocaleDateString(),
             receiptNo: 'RCP-' + Math.floor(Math.random() * 10000).toString().padStart(4, '0')
         };
@@ -213,6 +109,7 @@ export const Fees = ({ data, setData }) => {
         const paymentIndex = studentPayments.findIndex(pay => pay.id === p.id);
         const historyUpToNow = studentPayments.slice(0, paymentIndex + 1);
         
+        // Use cumulative balance logic
         const paidUntilNow = historyUpToNow.reduce((sum, pay) => sum + pay.amount, 0);
         const currentBalance = financials.totalDue - paidUntilNow;
 
@@ -226,161 +123,13 @@ export const Fees = ({ data, setData }) => {
         });
     };
 
-    // Get fee items filtered by student's grade and selection
-    const getFilteredFeeItems = () => {
-        if (!student || !feeStructure) return [];
-        
-        return allFeeItems.filter(item => {
-            // Special handling for term-specific items
-            if (item.key.startsWith('t')) {
-                const termKey = item.key;
-                return termKey === selectedTerm.toLowerCase();
-            }
-            
-            // Check if this item is selected for the student
-            const isSelected = (student.selectedFees || ['t1', 't2', 't3']).includes(item.key);
-            const hasAmount = feeStructure[item.key] > 0;
-            
-            return isSelected && hasAmount;
-        });
-    };
-
     return html`
         <div class="space-y-6">
             <h2 class="text-2xl font-bold no-print">Fee Management</h2>
 
-            <!-- FEE ITEM MANAGER MODAL -->
-            ${showFeeManager && html`
-                <div class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-                    <div class="bg-white w-full max-w-4xl max-h-[90vh] rounded-3xl p-8 shadow-2xl flex flex-col animate-in zoom-in-95 duration-200">
-                        <div class="flex justify-between items-center mb-6">
-                            <h3 class="text-2xl font-black">Fee Item Manager</h3>
-                            <button 
-                                onClick=${() => setShowFeeManager(false)}
-                                class="text-slate-500 hover:text-slate-700 text-xl"
-                            >
-                                ✕
-                            </button>
-                        </div>
-                        
-                        <!-- Add New Fee Item -->
-                        <div class="bg-slate-50 p-6 rounded-2xl mb-6">
-                            <h4 class="font-bold mb-4 text-lg">Add New Fee Item</h4>
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                                <div class="space-y-1">
-                                    <label class="text-xs font-bold text-slate-500 uppercase">Item Key</label>
-                                    <input 
-                                        type="text"
-                                        placeholder="e.g., medical"
-                                        class="w-full p-3 bg-white rounded-xl border border-slate-200 outline-none focus:border-primary"
-                                        value=${newFeeItem.key}
-                                        onInput=${e => setNewFeeItem({...newFeeItem, key: e.target.value})}
-                                    />
-                                </div>
-                                <div class="space-y-1">
-                                    <label class="text-xs font-bold text-slate-500 uppercase">Display Label</label>
-                                    <input 
-                                        type="text"
-                                        placeholder="e.g., Medical Fee"
-                                        class="w-full p-3 bg-white rounded-xl border border-slate-200 outline-none focus:border-primary"
-                                        value=${newFeeItem.label}
-                                        onInput=${e => setNewFeeItem({...newFeeItem, label: e.target.value})}
-                                    />
-                                </div>
-                                <div class="space-y-1">
-                                    <label class="text-xs font-bold text-slate-500 uppercase">Default Amount</label>
-                                    <input 
-                                        type="number"
-                                        placeholder="0.00"
-                                        class="w-full p-3 bg-white rounded-xl border border-slate-200 outline-none focus:border-primary"
-                                        value=${newFeeItem.defaultAmount}
-                                        onInput=${e => setNewFeeItem({...newFeeItem, defaultAmount: Number(e.target.value)})}
-                                    />
-                                </div>
-                            </div>
-                            <button 
-                                onClick=${handleAddFeeItem}
-                                class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700"
-                            >
-                                + Add New Fee Item
-                            </button>
-                        </div>
-
-                        <!-- Manage Existing Fee Items by Grade -->
-                        <div class="mb-6">
-                            <div class="flex items-center justify-between mb-4">
-                                <h4 class="font-bold text-lg">Configure Amounts by Grade</h4>
-                                <select 
-                                    class="p-2 bg-slate-50 rounded-lg border border-slate-200 outline-none focus:border-primary"
-                                    value=${selectedGradeForFees}
-                                    onChange=${e => setSelectedGradeForFees(e.target.value)}
-                                >
-                                    ${data.settings.grades.map(g => html`
-                                        <option value=${g}>${g}</option>
-                                    `)}
-                                </select>
-                            </div>
-                            
-                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 overflow-y-auto max-h-[300px] pr-2">
-                                ${allFeeItems.map(item => {
-                                    const structure = data.settings.feeStructures.find(f => f.grade === selectedGradeForFees);
-                                    const amount = structure ? structure[item.key] || 0 : 0;
-                                    
-                                    return html`
-                                        <div class="bg-white p-4 rounded-xl border border-slate-200 space-y-2">
-                                            <div class="flex justify-between items-start">
-                                                <div>
-                                                    <p class="font-bold text-sm">${item.label}</p>
-                                                    <p class="text-[10px] text-slate-500 font-mono">${item.key}</p>
-                                                </div>
-                                                <button 
-                                                    onClick=${() => handleDeleteFeeItem(item.key)}
-                                                    class="text-red-500 text-xs hover:text-red-700"
-                                                    title="Delete item"
-                                                >
-                                                    🗑️
-                                                </button>
-                                            </div>
-                                            <div class="flex items-center gap-2">
-                                                <span class="text-xs text-slate-500">${data.settings.currency}</span>
-                                                <input 
-                                                    type="number"
-                                                    class="flex-1 p-2 bg-slate-50 rounded-lg border border-slate-200 outline-none focus:border-primary"
-                                                    value=${amount}
-                                                    onInput=${e => handleUpdateFeeAmount(selectedGradeForFees, item.key, e.target.value)}
-                                                />
-                                            </div>
-                                        </div>
-                                    `;
-                                })}
-                            </div>
-                        </div>
-
-                        <div class="mt-auto pt-6 border-t border-slate-200 flex justify-end">
-                            <button 
-                                onClick=${() => setShowFeeManager(false)}
-                                class="px-6 py-3 bg-slate-800 text-white rounded-xl font-bold hover:bg-slate-900"
-                            >
-                                Done
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            `}
-
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <!-- PAYMENT ENTRY SECTION -->
                 <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 no-print">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="font-bold">Record New Payment</h3>
-                        <button 
-                            onClick=${() => setShowFeeManager(true)}
-                            class="bg-slate-800 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-slate-900"
-                        >
-                            Manage Fee Items
-                        </button>
-                    </div>
-                    
+                    <h3 class="font-bold mb-4">Record New Payment</h3>
                     <form onSubmit=${handlePayment} class="space-y-6">
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div class="space-y-1">
@@ -422,109 +171,87 @@ export const Fees = ({ data, setData }) => {
                             </div>
                         </div>
 
-                        ${student && feeStructure && html`
-                            <div class="space-y-4">
-                                <div class="flex justify-between items-center">
-                                    <label class="text-xs font-bold text-slate-500 uppercase">Fee Breakdown (${data.settings.currency})</label>
-                                    <div class="text-xs text-slate-500">
-                                        ${student.name}'s Selected Items for ${student.grade}
-                                    </div>
-                                </div>
-                                
-                                <!-- FEE ITEMS AS CARDS -->
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-80 overflow-y-auto pr-2 no-scrollbar">
-                                    {/* Previous Arrears Card (Special) */}
-                                    ${Number(student.previousArrears) > 0 && html`
-                                        <div class="col-span-full p-4 bg-orange-50 rounded-xl border-2 border-orange-200">
-                                            <div class="flex justify-between items-center mb-2">
-                                                <div>
-                                                    <p class="text-[10px] font-black text-orange-600 uppercase">Arrears Brought Forward</p>
-                                                    <p class="text-xs text-orange-500">Outstanding balance from previous years</p>
-                                                </div>
-                                                <button 
-                                                    type="button"
-                                                    onClick=${() => handleItemInput('previousArrears', student.previousArrears)}
-                                                    class="text-[9px] bg-orange-600 text-white px-3 py-1 rounded font-bold hover:bg-orange-700"
-                                                >
-                                                    Pay Full
-                                                </button>
-                                            </div>
-                                            <div class="flex items-center gap-2">
-                                                <span class="text-orange-700 font-bold">${data.settings.currency}</span>
-                                                <input 
-                                                    type="number"
-                                                    placeholder="Enter amount to pay towards arrears..."
-                                                    class="flex-1 p-3 bg-white border border-orange-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-orange-500 font-bold text-orange-700"
-                                                    value=${paymentItems['previousArrears'] || ''}
-                                                    onInput=${(e) => handleItemInput('previousArrears', e.target.value)}
-                                                />
-                                            </div>
-                                        </div>
-                                    `}
-                                    
-                                    {/* Regular Fee Item Cards */}
-                                    ${getFilteredFeeItems().map(item => {
-                                        const due = feeStructure[item.key] || 0;
-                                        const isEnabled = (student.selectedFees || ['t1', 't2', 't3']).includes(item.key);
-                                        
-                                        return html`
-                                            <div class="p-4 bg-slate-50 rounded-xl border border-slate-200 hover:border-primary transition-colors">
-                                                <div class="flex justify-between items-start mb-2">
-                                                    <div>
-                                                        <p class="text-xs font-bold text-slate-700">${item.label}</p>
-                                                        <p class="text-[10px] text-slate-500">Due: ${data.settings.currency} ${due.toLocaleString()}</p>
-                                                    </div>
-                                                    <div class="flex items-center gap-2">
+                        ${feeStructure && html`
+                            <div class="space-y-3">
+                                <label class="text-xs font-bold text-slate-500 uppercase block">Fee Breakdown (${data.settings.currency})</label>
+                                <div class="grid grid-cols-2 gap-3 max-h-64 overflow-y-auto pr-2 no-scrollbar">
+                                    ${feeColumns.map(col => {
+                                        // Handle Arrears specially
+                                        if (col.key === 'previousArrears') {
+                                            const arrearsDue = Number(student.previousArrears) || 0;
+                                            // Calculate actual outstanding arrears (Arrears BF - what's already been paid towards it)
+                                            const paidArrears = (data.payments || [])
+                                                .filter(p => p.studentId === student.id)
+                                                .reduce((sum, p) => sum + (Number(p.items?.previousArrears) || 0), 0);
+                                            const outstandingArrears = Math.max(0, arrearsDue - paidArrears);
+
+                                            if (outstandingArrears === 0 && arrearsDue === 0) return null;
+                                            
+                                            return html`
+                                                <div class="p-3 bg-orange-50 rounded-xl border-2 border-orange-200 col-span-2 animate-pulse-subtle">
+                                                    <div class="flex justify-between items-center mb-1">
+                                                        <p class="text-[10px] font-black text-orange-600 uppercase truncate">${col.label}</p>
                                                         <button 
                                                             type="button"
-                                                            onClick=${() => toggleFeeItemForStudent(item.key)}
-                                                            class=${`text-[8px] px-2 py-1 rounded font-bold ${
-                                                                isEnabled 
-                                                                    ? 'bg-green-100 text-green-700 hover:bg-green-200' 
-                                                                    : 'bg-red-100 text-red-700 hover:bg-red-200'
-                                                            }`}
-                                                            title=${isEnabled ? 'Disable for this student' : 'Enable for this student'}
+                                                            onClick=${() => handleItemInput(col.key, outstandingArrears)}
+                                                            class="text-[9px] bg-orange-600 text-white px-2 py-0.5 rounded font-bold hover:bg-orange-700 transition-colors"
                                                         >
-                                                            ${isEnabled ? 'ON' : 'OFF'}
+                                                            Pay Full Arrears
                                                         </button>
                                                     </div>
-                                                </div>
-                                                <div class="flex items-center gap-2">
-                                                    <span class="text-slate-500 text-xs">${data.settings.currency}</span>
+                                                    <p class="text-[10px] text-orange-500 mb-1 font-bold">Outstanding Arrears: ${data.settings.currency} ${outstandingArrears.toLocaleString()}</p>
                                                     <input 
-                                                        type="number"
-                                                        placeholder="0"
-                                                        class="flex-1 p-2 bg-white border border-slate-300 rounded-lg text-sm outline-none focus:border-primary"
-                                                        value=${paymentItems[item.key] || ''}
-                                                        onInput=${(e) => handleItemInput(item.key, e.target.value)}
-                                                        disabled=${!isEnabled}
+                                                        type="number" 
+                                                        placeholder="Enter amount to pay towards arrears..."
+                                                        class="w-full bg-white border border-orange-300 rounded-lg p-3 text-sm outline-none focus:ring-2 focus:ring-orange-500 font-black text-orange-700"
+                                                        value=${paymentItems[col.key] || ''}
+                                                        onInput=${(e) => handleItemInput(col.key, e.target.value)}
                                                     />
+                                                    <p class="text-[8px] text-orange-400 mt-1 italic">* It is recommended to clear arrears before current fees.</p>
                                                 </div>
+                                            `;
+                                        }
+
+                                        // Term Filter logic: 
+                                        // 1. Hide other terms tuition
+                                        if (col.key === 't1' && selectedTerm !== 'T1') return null;
+                                        if (col.key === 't2' && selectedTerm !== 'T2') return null;
+                                        if (col.key === 't3' && selectedTerm !== 'T3') return null;
+
+                                        // Filter items based on student's fee profile
+                                        const isSelected = (student.selectedFees || ['t1', 't2', 't3', 'admission', 'diary', 'development']).includes(col.key);
+                                        const due = feeStructure[col.key] || 0;
+                                        
+                                        if (!isSelected || due === 0) return null;
+                                        
+                                        return html`
+                                            <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                                                <p class="text-[10px] font-bold text-slate-400 uppercase truncate">${col.label}</p>
+                                                <p class="text-[10px] text-slate-500 mb-1">Due: ${due.toLocaleString()}</p>
+                                                <input 
+                                                    type="number" 
+                                                    placeholder="0"
+                                                    class="w-full bg-white border border-slate-200 rounded-lg p-1 text-sm outline-none focus:ring-1 focus:ring-blue-500"
+                                                    value=${paymentItems[col.key] || ''}
+                                                    onInput=${(e) => handleItemInput(col.key, e.target.value)}
+                                                />
                                             </div>
                                         `;
                                     })}
                                 </div>
-                                
                                 <div class="pt-4 border-t flex justify-between items-center">
                                     <span class="font-bold text-slate-700">Total to Pay:</span>
-                                    <span class="text-xl font-black text-blue-600">
-                                        ${data.settings.currency} ${Object.values(paymentItems).reduce((sum, v) => sum + (v || 0), 0).toLocaleString()}
-                                    </span>
+                                    <span class="text-xl font-black text-blue-600">${data.settings.currency} ${Object.values(paymentItems).reduce((sum, v) => sum + (v || 0), 0).toLocaleString()}</span>
                                 </div>
                             </div>
                         `}
 
-                        <button 
-                            type="submit"
-                            class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed" 
-                            disabled=${!selectedStudentId}
-                        >
+                        <button class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-blue-200 disabled:opacity-50" disabled=${!selectedStudentId}>
                             Generate Receipt
                         </button>
                     </form>
                 </div>
 
-                <!-- RECEIPT DISPLAY SECTION (unchanged from original) -->
                 <div class="bg-slate-900 text-white p-4 sm:p-8 rounded-2xl sm:rounded-3xl shadow-2xl relative overflow-hidden print:bg-white print:text-black print:shadow-none print:p-0 min-h-[500px] receipt-container">
                     <div class="absolute -top-10 -right-10 w-40 h-40 bg-blue-500/20 rounded-full blur-3xl print:hidden"></div>
                     ${receipt ? html`
@@ -538,6 +265,7 @@ export const Fees = ({ data, setData }) => {
                             <div class="flex flex-col sm:flex-row justify-between items-start gap-4">
                                 <div>
                                     <h4 class="text-blue-400 print:text-blue-600 font-bold uppercase tracking-widest text-[9px] sm:text-[10px]">Official Payment Receipt - Term ${receipt.term || 'N/A'}</h4>
+                                    <p class="text-[10px] text-slate-400 uppercase font-bold">Academic Year: ${data.settings.academicYear}</p>
                                     <p class="text-xl sm:text-2xl font-black mt-0.5 sm:mt-1">${receipt.receiptNo}</p>
                                 </div>
                                 <div class="text-left sm:text-right w-full sm:w-auto border-t border-slate-800 sm:border-0 pt-2 sm:pt-0">
@@ -559,15 +287,49 @@ export const Fees = ({ data, setData }) => {
                                         <span class="text-right">Balance</span>
                                     </div>
                                     <div class="space-y-1 min-w-[280px]">
-                                        {/* Receipt item display logic (unchanged) */}
-                                        ${allFeeItems.map(col => {
+                                        ${feeColumns.map(col => {
                                             const paidNow = receipt.items?.[col.key] || 0;
+                                            
+                                            // Special logic for Arrears B/F
+                                            if (col.key === 'previousArrears') {
+                                                const targetStudent = data.students.find(s => s.name === receipt.studentName);
+                                                const feeAmount = Number(targetStudent?.previousArrears) || 0;
+                                                if (feeAmount === 0 && paidNow === 0) return null;
+                                                
+                                                const totalPaidForItem = (receipt.history || []).reduce((sum, p) => sum + (p.items?.[col.key] || 0), 0);
+                                                const itemBalance = feeAmount - totalPaidForItem;
+                                                
+                                                return html`
+                                                    <div class="grid grid-cols-4 text-[10px] border-b border-slate-800/30 print:border-slate-100 py-1.5 items-center">
+                                                        <span class="text-orange-400 print:text-orange-600 truncate pr-1 font-bold">${col.label}</span>
+                                                        <span class="text-right text-slate-300 print:text-slate-400 font-medium">${feeAmount.toLocaleString()}</span>
+                                                        <span class=${`text-right font-bold ${paidNow > 0 ? 'text-white print:text-black' : 'text-slate-600 print:text-slate-300'}`}>
+                                                            ${paidNow > 0 ? paidNow.toLocaleString() : '-'}
+                                                        </span>
+                                                        <span class="text-right font-mono font-bold ${itemBalance > 0 ? 'text-orange-400 print:text-slate-700' : 'text-green-400 print:text-green-600'}">
+                                                            ${itemBalance.toLocaleString()}
+                                                        </span>
+                                                    </div>
+                                                `;
+                                            }
+
+                                            // Filter by term if it's a tuition fee
+                                            const currentTermKey = receipt.term?.toLowerCase() || '';
+                                            const isOtherTerm = ['t1', 't2', 't3'].includes(col.key) && col.key !== currentTermKey;
+                                            
+                                            // Determine if this item is part of this specific student's profile
                                             const targetStudent = data.students.find(s => s.name === receipt.studentName);
                                             const isSelected = (targetStudent?.selectedFees || ['t1', 't2', 't3']).includes(col.key);
+                                            
+                                            // Don't show other terms unless there was a payment for them (rare)
+                                            if (isOtherTerm && paidNow === 0) return null;
+
                                             const feeAmount = isSelected ? (receipt.structure?.[col.key] || 0) : 0;
                                             
+                                            // Only show if it's selected for the student OR if something was paid anyway (history)
                                             if (feeAmount === 0 && paidNow === 0) return null;
 
+                                            // Calculate cumulative balance for this item up to this receipt
                                             const totalPaidForItem = (receipt.history || []).reduce((sum, p) => sum + (p.items?.[col.key] || 0), 0);
                                             const itemBalance = feeAmount - totalPaidForItem;
                                             
@@ -631,7 +393,6 @@ export const Fees = ({ data, setData }) => {
                 </div>
             </div>
 
-            <!-- TRANSACTION HISTORY SECTION (unchanged) -->
             <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden mt-8 no-print">
                 <div class="p-6 border-b border-slate-50 flex justify-between items-center">
                     <h3 class="font-bold">Transaction History</h3>
@@ -709,6 +470,7 @@ export const Fees = ({ data, setData }) => {
                     .text-orange-400 { color: #9a3412 !important; }
                     .border-slate-800 { border-color: #000 !important; }
                     
+                    /* Reset mobile constraints for printing */
                     body, html { height: auto !important; overflow: visible !important; }
                     #app { height: auto !important; overflow: visible !important; }
                     main { overflow: visible !important; position: static !important; }

@@ -40,6 +40,7 @@ export const Payroll = ({ data, setData }) => {
         const entry = {
             staffId,
             month: selectedMonth,
+            academicYear: data.settings.academicYear,
             ...calcs,
             updatedAt: new Date().toISOString()
         };
@@ -228,6 +229,7 @@ export const Payroll = ({ data, setData }) => {
                                 <div class="text-right">
                                     <div class="bg-blue-600 text-white px-4 py-1 rounded-full text-[10px] font-bold uppercase mb-2 inline-block">Official Payslip</div>
                                     <p class="text-sm font-bold text-slate-700">Month: ${months[new Date(activePayslip.entry.month).getMonth()]} ${new Date(activePayslip.entry.month).getFullYear()}</p>
+                                    <p class="text-xs text-slate-500">Academic Year: ${data.settings.academicYear}</p>
                                 </div>
                             </div>
 

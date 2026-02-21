@@ -12,7 +12,7 @@ export const Fees = ({ data, setData }) => {
     const [paymentItems, setPaymentItems] = useState({});
     const [receipt, setReceipt] = useState(null);
 
-    const feeColumns = [
+    const defaultFeeColumns = [
         { key: 'previousArrears', label: 'Arrears B/F' },
         { key: 'admission', label: 'Admission' },
         { key: 'diary', label: 'Diary' },
@@ -36,6 +36,9 @@ export const Fees = ({ data, setData }) => {
         { key: 'academicSupport', label: 'Academic Support' },
         { key: 'pta', label: 'PTA' }
     ];
+    
+    const customFeeColumns = (data.settings.customFeeColumns || []).map(cf => ({ key: cf.key, label: cf.label }));
+    const feeColumns = [...defaultFeeColumns, ...customFeeColumns];
 
     const terms = ['T1', 'T2', 'T3'];
 

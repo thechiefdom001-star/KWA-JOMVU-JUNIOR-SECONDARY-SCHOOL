@@ -15,6 +15,8 @@ export const Settings = ({ data, setData }) => {
     const [editingFeeGrade, setEditingFeeGrade] = useState(null);
     const [showImportModal, setShowImportModal] = useState(false);
     const [hiddenFeeItems, setHiddenFeeItems] = useState({});
+    const [showAddNewFeeModal, setShowAddNewFeeModal] = useState(false);
+    const [newFeeItem, setNewFeeItem] = useState({ key: '', label: '', amount: 0, grade: '' });
     const [pendingImportData, setPendingImportData] = useState(null);
     const [importSelections, setImportSelections] = useState({
         students: true,
@@ -85,8 +87,24 @@ export const Settings = ({ data, setData }) => {
         { key: 'activityFees', label: 'Activity Fees' },
         { key: 'tieAndBadge', label: 'Tie & Badge' },
         { key: 'academicSupport', label: 'Academic Support' },
-        { key: 'pta', label: 'PTA' }
+        { key: 'pta', label: 'PTA' },
+        ...(settings.customFeeColumns || [])
     ];
+
+    const getGradeGroup = (grade) => {
+        const pp1pp2 = ['PP1', 'PP2'];
+        const grade1to3 = ['GRADE 1', 'GRADE 2', 'GRADE 3'];
+        const grade4to6 = ['GRADE 4', 'GRADE 5', 'GRADE 6'];
+        const grade7to9 = ['GRADE 7', 'GRADE 8', 'GRADE 9'];
+        const grade10to12 = ['GRADE 10', 'GRADE 11', 'GRADE 12'];
+        
+        if (pp1pp2.includes(grade)) return 'pp1-pp2';
+        if (grade1to3.includes(grade)) return 'grade1-3';
+        if (grade4to6.includes(grade)) return 'grade4-6';
+        if (grade7to9.includes(grade)) return 'grade7-9';
+        if (grade10to12.includes(grade)) return 'grade10-12';
+        return null;
+    };
 
     const handleExport = () => {
         const dataStr = JSON.stringify(data, null, 2);
@@ -314,7 +332,15 @@ export const Settings = ({ data, setData }) => {
                 </div>
 
                 <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                    <h3 class="font-bold mb-6">Fee Structure per Grade (${settings.currency})</h3>
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="font-bold">Fee Structure per Grade (${settings.currency})</h3>
+                        <button 
+                            onClick=${() => setShowAddNewFeeModal(true)}
+                            class="px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700 flex items-center gap-1"
+                        >
+                            + Add New Fee
+                        </button>
+                    </div>
                     
                     <!-- Grade Group Cards -->
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -407,13 +433,19 @@ export const Settings = ({ data, setData }) => {
                                             <div class="border-t border-slate-100 pt-3 mt-3">
                                                 <p class="text-xs font-bold text-slate-500 mb-2">Fee Items - Compulsory/Optional</p>
                                                 <div class="space-y-1.5">
-                                                    ${feeColumns.map(col => {
+                                                    ${feeColumns.filter(col => {
+                                                        const customFee = (settings.customFeeColumns || []).find(cf => cf.key === col.key);
+                                                        if (!customFee) return true; // Show default fees in all groups
+                                                        return customFee.group === group.id; // Show custom fees only in their group
+                                                    }).map(col => {
                                                         const isCompulsory = compulsoryFees[col.key] !== false;
                                                         const isHidden = (hiddenFeeItems[group.id] || []).includes(col.key);
+                                                        const customFee = (settings.customFeeColumns || []).find(cf => cf.key === col.key);
                                                         return html`
                                                             <div key=${col.key} class=${`flex items-center justify-between bg-slate-50 rounded-lg p-2 ${isHidden ? 'opacity-40' : ''}`}>
                                                                 <div class="flex items-center gap-2">
                                                                     <span class="text-[10px] font-medium">${col.label}</span>
+                                                                    ${customFee && html`<span class="text-[8px] bg-blue-100 text-blue-600 px-1 rounded">${customFee.grade}</span>`}
                                                                     ${isHidden && html`<span class="text-[8px] text-red-500 font-bold">(Hidden)</span>`}
                                                                 </div>
                                                                 <div class="flex gap-1">
@@ -516,6 +548,11 @@ export const Settings = ({ data, setData }) => {
                     ].find(g => g.grades.includes(editingFeeGrade));
                     const groupId = gradeGroup?.id || 'pp1-pp2';
                     const groupHiddenItems = hiddenFeeItems[groupId] || [];
+                    const groupFeeColumns = feeColumns.filter(col => {
+                        const customFee = (settings.customFeeColumns || []).find(cf => cf.key === col.key);
+                        if (!customFee) return true;
+                        return customFee.group === groupId;
+                    });
                     
                     return html`
                         <div class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
@@ -525,12 +562,16 @@ export const Settings = ({ data, setData }) => {
                                     <button onClick=${() => setEditingFeeGrade(null)} class="text-slate-400 hover:text-slate-600 text-2xl">&times;</button>
                                 </div>
                                 <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
-                                    ${feeColumns.map(col => {
+                                    ${groupFeeColumns.map(col => {
                                         const isHidden = groupHiddenItems.includes(col.key);
+                                        const customFee = (settings.customFeeColumns || []).find(cf => cf.key === col.key);
                                         return html`
                                             <div class=${`space-y-1 ${isHidden ? 'opacity-50' : ''}`}>
                                                 <div class="flex items-center justify-between">
-                                                    <label class="text-[10px] font-bold text-slate-500 uppercase">${col.label}</label>
+                                                    <div class="flex items-center gap-1">
+                                                        <label class="text-[10px] font-bold text-slate-500 uppercase">${col.label}</label>
+                                                        ${customFee && html`<span class="text-[8px] bg-blue-100 text-blue-600 px-1 rounded">${customFee.grade}</span>`}
+                                                    </div>
                                                     <button 
                                                         onClick=${() => {
                                                             const currentHidden = hiddenFeeItems[groupId] || [];
@@ -569,6 +610,114 @@ export const Settings = ({ data, setData }) => {
                         </div>
                     `;
                 })()}
+
+                <!-- Add New Fee Modal -->
+                ${showAddNewFeeModal && html`
+                    <div class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+                        <div class="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl animate-in zoom-in-95 duration-200">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-xl font-black">Add New Fee Item</h3>
+                                <button onClick=${() => setShowAddNewFeeModal(false)} class="text-slate-400 hover:text-slate-600 text-2xl">&times;</button>
+                            </div>
+                            <div class="space-y-4">
+                                <div class="space-y-2">
+                                    <label class="text-xs font-bold text-slate-500 uppercase">Fee Name (display)</label>
+                                    <input 
+                                        type="text" 
+                                        class="w-full p-3 bg-slate-50 rounded-lg text-sm font-bold border border-slate-200 focus:border-blue-500 outline-none"
+                                        placeholder="e.g., Music Fee"
+                                        value=${newFeeItem.label}
+                                        onInput=${(e) => {
+                                            const key = e.target.value.replace(/\s+/g, '').toLowerCase();
+                                            setNewFeeItem({ ...newFeeItem, label: e.target.value, key });
+                                        }}
+                                    />
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-xs font-bold text-slate-500 uppercase">Amount (${settings.currency})</label>
+                                    <input 
+                                        type="number" 
+                                        class="w-full p-3 bg-slate-50 rounded-lg text-sm font-bold border border-slate-200 focus:border-blue-500 outline-none"
+                                        placeholder="e.g., 5000"
+                                        value=${newFeeItem.amount || ''}
+                                        onInput=${(e) => setNewFeeItem({ ...newFeeItem, amount: Number(e.target.value) })}
+                                    />
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-xs font-bold text-slate-500 uppercase">Select Class/Grade</label>
+                                    <select 
+                                        class="w-full p-3 bg-slate-50 rounded-lg text-sm font-bold border border-slate-200 focus:border-blue-500 outline-none"
+                                        value=${newFeeItem.grade}
+                                        onChange=${(e) => setNewFeeItem({ ...newFeeItem, grade: e.target.value })}
+                                    >
+                                        <option value="">Select Grade</option>
+                                        ${(settings.feeStructures || []).map(f => html`
+                                            <option value=${f.grade}>${f.grade}</option>
+                                        `)}
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="flex gap-3 mt-6">
+                                <button 
+                                    onClick=${() => setShowAddNewFeeModal(false)} 
+                                    class="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold"
+                                >
+                                    Cancel
+                                </button>
+                                <button 
+                                    onClick=${() => {
+                                        if (!newFeeItem.key || !newFeeItem.label) {
+                                            alert('Please enter a fee name');
+                                            return;
+                                        }
+                                        if (!newFeeItem.grade) {
+                                            alert('Please select a class/grade');
+                                            return;
+                                        }
+                                        if (feeColumns.some(col => col.key === newFeeItem.key)) {
+                                            alert('This fee already exists');
+                                            return;
+                                        }
+                                        
+                                        const gradeGroup = getGradeGroup(newFeeItem.grade);
+                                        
+                                        // Add to customFeeColumns in settings
+                                        const currentCustomFees = settings.customFeeColumns || [];
+                                        const updatedCustomFees = [...currentCustomFees, { 
+                                            key: newFeeItem.key, 
+                                            label: newFeeItem.label,
+                                            grade: newFeeItem.grade,
+                                            group: gradeGroup
+                                        }];
+                                        
+                                        // Add to the selected grade's fee structure
+                                        const newStructures = (settings.feeStructures || []).map(f => {
+                                            if (f.grade === newFeeItem.grade) {
+                                                return { ...f, [newFeeItem.key]: newFeeItem.amount || 0 };
+                                            }
+                                            return f;
+                                        });
+                                        
+                                        setData({ 
+                                            ...data, 
+                                            settings: { 
+                                                ...settings, 
+                                                feeStructures: newStructures,
+                                                customFeeColumns: updatedCustomFees
+                                            } 
+                                        });
+                                        setShowAddNewFeeModal(false);
+                                        setNewFeeItem({ key: '', label: '', amount: 0, grade: '' });
+                                        alert('New fee item added to ' + newFeeItem.grade + ' successfully!');
+                                    }}
+                                    class="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700"
+                                >
+                                    Add Fee
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `}
 
                 <!-- Selective Import Modal -->
                 ${showImportModal && html`

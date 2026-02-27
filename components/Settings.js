@@ -304,6 +304,69 @@ export const Settings = ({ data, setData }) => {
                     </div>
                 </div>
 
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-teal-100 bg-gradient-to-br from-white to-teal-50/30">
+                    <h3 class="font-bold mb-4 flex items-center gap-2 text-teal-800">
+                        <span class="w-4 h-4 bg-teal-500 rounded text-white flex items-center justify-center text-[10px]">📅</span>
+                        Term Dates Configuration
+                    </h3>
+                    <p class="text-xs text-slate-500 mb-4">
+                        Set the start and end dates for each term. The attendance register will automatically calculate weeks based on these dates.
+                    </p>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        ${['T1', 'T2', 'T3'].map(term => {
+                            const termNum = term === 'T1' ? '1' : term === 'T2' ? '2' : '3';
+                            const termData = settings.termDates?.[term] || { start: '', end: '' };
+                            return html`
+                                <div class="p-4 border border-teal-200 rounded-xl bg-white">
+                                    <h4 class="font-bold text-sm mb-3 text-teal-700">Term ${termNum}</h4>
+                                    <div class="space-y-2">
+                                        <div>
+                                            <label class="text-[10px] font-bold text-slate-500 uppercase">Start Date</label>
+                                            <input 
+                                                type="date"
+                                                value=${termData.start || ''}
+                                                onChange=${(e) => {
+                                                    setData({
+                                                        ...data,
+                                                        settings: {
+                                                            ...settings,
+                                                            termDates: {
+                                                                ...(settings.termDates || {}),
+                                                                [term]: { ...termData, start: e.target.value }
+                                                            }
+                                                        }
+                                                    });
+                                                }}
+                                                class="w-full mt-1 px-3 py-2 border border-teal-200 rounded-lg text-sm"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label class="text-[10px] font-bold text-slate-500 uppercase">End Date</label>
+                                            <input 
+                                                type="date"
+                                                value=${termData.end || ''}
+                                                onChange=${(e) => {
+                                                    setData({
+                                                        ...data,
+                                                        settings: {
+                                                            ...settings,
+                                                            termDates: {
+                                                                ...(settings.termDates || {}),
+                                                                [term]: { ...termData, end: e.target.value }
+                                                            }
+                                                        }
+                                                    });
+                                                }}
+                                                class="w-full mt-1 px-3 py-2 border border-teal-200 rounded-lg text-sm"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        })}
+                    </div>
+                </div>
+
                 <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
                     <h3 class="font-bold mb-4 flex items-center gap-2">
                         <span class="w-4 h-4 bg-purple-500 rounded text-white flex items-center justify-center text-[10px]">K</span>

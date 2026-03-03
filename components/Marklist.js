@@ -1,24 +1,44 @@
 import { h } from 'preact';
-import { useState } from 'preact/hooks';
+import { useState, useMemo } from 'preact/hooks';
 import htm from 'htm';
 import { Storage } from '../lib/storage.js';
 
 const html = htm.bind(h);
 
-export const Marklist = ({ data, setData }) => {
-    const [selectedGrade, setSelectedGrade] = useState('GRADE 1');
+function safeArray(arr) {
+    return Array.isArray(arr) ? arr : [];
+}
+
+export const Marklist = ({ data = {}, setData = () => {} }) => {
+    const settings = safeArray(data.settings) ? data.settings : {};
+    const grades = safeArray(settings.grades);
+    const studentsList = safeArray(data.students);
+    const assessmentsList = safeArray(data.assessments);
+    const remarksList = safeArray(data.remarks);
+    
+    const defaultGrade = grades.length > 0 ? grades[0] : 'GRADE 1';
+    const [selectedGrade, setSelectedGrade] = useState(defaultGrade);
     const [selectedTerm, setSelectedTerm] = useState('T1');
     const [selectedExamType, setSelectedExamType] = useState('End-Term');
 
-    const subjects = Storage.getSubjectsForGrade(selectedGrade);
-    const students = (data?.students || []).filter(s => s.grade === selectedGrade);
+    const subjects = useMemo(() => {
+        return safeArray(Storage.getSubjectsForGrade(selectedGrade || 'GRADE 1'));
+    }, [selectedGrade]);
+    
+    const students = useMemo(() => {
+        return studentsList.filter(s => s.grade === selectedGrade);
+    }, [studentsList, selectedGrade]);
 
     const handleTeacherRemarkChange = (studentId, value) => {
-        const existing = (data.remarks || []).find(r => r.studentId === studentId) || { teacher: '', principal: '' };
-        const otherRemarks = (data.remarks || []).filter(r => r.studentId !== studentId);
+        const existing = remarksList.find(r => r.studentId === studentId) || { teacher: '', principal: '' };
+        const otherRemarks = remarksList.filter(r => r.studentId !== studentId);
         const updated = { ...existing, studentId, teacher: value };
         setData({ ...data, remarks: [...otherRemarks, updated] });
     };
+
+    const gradeOptions = grades.length > 0 ? grades : ['GRADE 1'];
+    const examTypes = ['Opener', 'Mid-Term', 'End-Term'];
+    const academicYear = settings.academicYear || '2025/2026';
 
     return html`
         <div class="space-y-6">
@@ -30,7 +50,7 @@ export const Marklist = ({ data, setData }) => {
                         value=${selectedGrade}
                         onChange=${(e) => setSelectedGrade(e.target.value)}
                     >
-                        ${data.settings.grades.map(g => html`<option value=${g}>${g}</option>`)}
+                        ${gradeOptions.map(g => html`<option key=${g} value=${g}>${g}</option>`)}
                     </select>
                     <select 
                         class="flex-1 md:flex-none p-2 bg-white border border-slate-200 rounded-lg text-xs font-bold"
@@ -46,19 +66,17 @@ export const Marklist = ({ data, setData }) => {
                         value=${selectedExamType}
                         onChange=${(e) => setSelectedExamType(e.target.value)}
                     >
-                        <option value="Opener">Opener</option>
-                        <option value="Mid-Term">Mid-Term</option>
-                        <option value="End-Term">End-Term</option>
+                        ${examTypes.map(type => html`<option key=${type} value=${type}>${type}</option>`)}
                     </select>
                     <button onClick=${() => window.print()} class="bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-bold">Print</button>
                 </div>
             </div>
 
-            <div class="print-only mb-6 flex flex-col items-center text-center">
-                <img src="${data.settings.schoolLogo}" class="w-16 h-16 mb-2 object-contain" alt="Logo" />
-                <h1 class="text-2xl font-black uppercase">${data.settings.schoolName}</h1>
+            <div class="Print-only mb-6 flex flex-col items-center text-center">
+                <img src="${settings.schoolLogo || ''}" class="w-16 h-16 mb-2 object-contain" alt="Logo" />
+                <h1 class="text-2xl font-black uppercase">${settings.schoolName || 'School'}</h1>
                 <h2 class="text-sm font-bold uppercase text-slate-500 mt-1">Official Class Marklist - ${selectedGrade}</h2>
-                <p class="text-[10px] font-bold text-slate-400 uppercase mt-1">${selectedTerm} | ${selectedExamType} EXAM • Academic Year: ${data.settings.academicYear}</p>
+                <p class="text-[10px] font-bold text-slate-400 uppercase mt-1">${selectedTerm} | ${selectedExamType} EXAM • Academic Year: ${academicYear}</p>
             </div>
 
             <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-x-auto no-scrollbar">
@@ -74,55 +92,94 @@ export const Marklist = ({ data, setData }) => {
                         <tr>
                             <th class="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase border-r">Student Name</th>
                             ${subjects.map(s => html`
-                                <th class="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase text-center border-r" colspan="2">${s}</th>
+                                <th key=${s} class="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase text-center border-r" colspan="2">${s}</th>
                             `)}
                             <th class="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase text-center">Remarks</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">
                         ${students.map(student => {
-                            const remark = (data.remarks || []).find(r => r.studentId === student.id) || { teacher: '', principal: '' };
+                            const remark = remarksList.find(r => r.studentId === student.id) || { teacher: '', principal: '' };
                             return html`
                                 <tr key=${student.id} class="hover:bg-slate-50">
-                                    <td class="px-4 py-3 font-bold text-sm border-r whitespace-nowrap">${student.name}</td>
+                                    <td class="px-4 py-3 border-r">
+                                        <div class="font-bold text-sm">${student.name}</div>
+                                        <div class="text-[9px] text-slate-400 uppercase">${student.admissionNo || '-'}</div>
+                                    </td>
                                     ${subjects.map(subject => {
-                                        const assessment = data.assessments.find(a => 
+                                        const assessment = assessmentsList.find(a => 
                                             a.studentId === student.id && 
                                             a.subject === subject && 
                                             a.term === selectedTerm && 
-                                            a.examType === selectedExamType &&
-                                            a.academicYear === data.settings.academicYear
+                                            a.examType === selectedExamType && 
+                                            a.academicYear === academicYear
                                         );
+                                        const score = assessment ? Number(assessment.score) : null;
+                                        const gradeInfo = score !== null ? Storage.getGradeInfo(score) : null;
+                                        
                                         return html`
-                                            <td class="px-2 py-3 text-[10px] text-center font-bold text-slate-600 border-l">
-                                                ${assessment?.score || '-'}
+                                            <td key=${subject} class="px-1 py-3 border-r text-center">
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    max="100"
+                                                    class="w-12 text-center text-xs font-bold border border-slate-200 rounded px-1 py-1 outline-none focus:ring-1 focus:ring-blue-500 no-print"
+                                                    value=${score !== null ? score : ''}
+                                                    placeholder="-"
+                                                    onInput=${(e) => {
+                                                        const newScore = e.target.value ? Number(e.target.value) : null;
+                                                        const newData = { ...data };
+                                                        const idx = newData.assessments ? newData.assessments.findIndex(a => 
+                                                            a.studentId === student.id && 
+                                                            a.subject === subject && 
+                                                            a.term === selectedTerm && 
+                                                            a.examType === selectedExamType &&
+                                                            a.academicYear === academicYear
+                                                        ) : -1;
+                                                        
+                                                        if (!newData.assessments) newData.assessments = [];
+                                                        
+                                                        const newAssessment = {
+                                                            id: assessment?.id || Date.now() + Math.random(),
+                                                            studentId: student.id,
+                                                            subject,
+                                                            term: selectedTerm,
+                                                            examType: selectedExamType,
+                                                            academicYear,
+                                                            score: newScore,
+                                                            level: gradeInfo?.level || '-'
+                                                        };
+                                                        
+                                                        if (idx >= 0) {
+                                                            newData.assessments[idx] = newAssessment;
+                                                        } else {
+                                                            newData.assessments.push(newAssessment);
+                                                        }
+                                                        
+                                                        setData(newData);
+                                                    }}
+                                                />
+                                                <span class="hidden print:inline text-xs font-bold">${score !== null ? score : '-'}</span>
                                             </td>
-                                            <td class="px-2 py-3 text-[10px] text-center border-r">
-                                                <span class=${`font-bold ${
-                                                    (assessment?.level || '').startsWith('EE') ? 'text-green-600' :
-                                                    (assessment?.level || '').startsWith('ME') ? 'text-blue-600' :
-                                                    (assessment?.level || '').startsWith('AE') ? 'text-orange-500' :
-                                                    (assessment?.level || '').startsWith('BE') ? 'text-red-500' :
-                                                    'text-slate-300'
-                                                }`}>
-                                                    ${assessment?.level || '-'}
+                                            <td class="px-1 py-3 border-r text-center">
+                                                <span class="text-[8px] font-bold px-1 py-0.5 rounded ${gradeInfo?.level?.startsWith('EE') ? 'bg-green-100 text-green-700' : 
+                                                    gradeInfo?.level?.startsWith('ME') ? 'bg-blue-100 text-blue-700' : 
+                                                    gradeInfo?.level?.startsWith('AE') ? 'bg-yellow-100 text-yellow-700' : 
+                                                    gradeInfo?.level?.startsWith('BE') ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-500'}">
+                                                    ${gradeInfo?.label || '-'}
                                                 </span>
                                             </td>
                                         `;
                                     })}
-                                    <td class="px-4 py-3 text-[10px] border-l text-slate-500 align-top">
-                                        <div class="flex flex-col gap-1">
-                                            <textarea
-                                                class="w-full text-[10px] border border-slate-200 rounded px-1 py-1 outline-none focus:ring-1 focus:ring-blue-500 no-print"
-                                                rows="2"
-                                                placeholder="Teacher comment..."
-                                                value=${remark.teacher}
-                                                onInput=${(e) => handleTeacherRemarkChange(student.id, e.target.value)}
-                                            ></textarea>
-                                            <span class="hidden print:block italic">
-                                                ${remark.teacher || '_______________________________'}
-                                            </span>
-                                        </div>
+                                    <td class="px-2 py-2">
+                                        <input
+                                            type="text"
+                                            class="w-full text-[10px] border border-slate-200 rounded px-1 py-1 outline-none focus:ring-1 focus:ring-blue-500 no-print"
+                                            value=${remark.teacher || ''}
+                                            placeholder="Add remark..."
+                                            onInput=${(e) => handleTeacherRemarkChange(student.id, e.target.value)}
+                                        />
+                                        <span class="hidden print:inline text-[8px] italic">${remark.teacher || '-'}</span>
                                     </td>
                                 </tr>
                             `;
@@ -132,13 +189,18 @@ export const Marklist = ({ data, setData }) => {
                         <tr class="font-bold text-slate-900">
                             <td class="px-4 py-3 text-[10px] uppercase border-r">Column Totals</td>
                             ${subjects.map(subject => {
-                                const subjectScores = students.map(s => {
-                                    const a = data.assessments.find(as => as.studentId === s.id && as.subject === subject && as.term === selectedTerm && as.examType === selectedExamType && as.academicYear === data.settings.academicYear);
-                                    return a ? Number(a.score) : 0;
-                                });
-                                const total = subjectScores.reduce((a, b) => a + b, 0);
+                                const total = students.reduce((sum, s) => {
+                                    const a = assessmentsList.find(as => 
+                                        as.studentId === s.id && 
+                                        as.subject === subject && 
+                                        as.term === selectedTerm && 
+                                        as.examType === selectedExamType &&
+                                        as.academicYear === academicYear
+                                    );
+                                    return sum + (a ? Number(a.score) : 0);
+                                }, 0);
                                 return html`
-                                    <td class="px-2 py-3 text-[10px] text-center border-l bg-blue-50/30" colspan="2">
+                                    <td key=${subject} class="px-2 py-3 text-[10px] text-center border-l bg-blue-50/30" colspan="2">
                                         ${total || '-'}
                                     </td>
                                 `;
@@ -149,12 +211,18 @@ export const Marklist = ({ data, setData }) => {
                             <td class="px-4 py-3 text-[10px] uppercase border-r">Mean Average</td>
                             ${subjects.map(subject => {
                                 const validScores = students.map(s => {
-                                    const a = data.assessments.find(as => as.studentId === s.id && as.subject === subject && as.term === selectedTerm && as.examType === selectedExamType && as.academicYear === data.settings.academicYear);
+                                    const a = assessmentsList.find(as => 
+                                        as.studentId === s.id && 
+                                        as.subject === subject && 
+                                        as.term === selectedTerm && 
+                                        as.examType === selectedExamType &&
+                                        as.academicYear === academicYear
+                                    );
                                     return a ? Number(a.score) : null;
                                 }).filter(s => s !== null);
                                 const avg = validScores.length > 0 ? Math.round(validScores.reduce((a, b) => a + b, 0) / validScores.length) : 0;
                                 return html`
-                                    <td class="px-2 py-3 text-[10px] text-center border-l bg-blue-50/50" colspan="2">
+                                    <td key=${subject} class="px-2 py-3 text-[10px] text-center border-l bg-blue-50/50" colspan="2">
                                         ${avg ? avg + '%' : '-'}
                                     </td>
                                 `;
@@ -169,138 +237,97 @@ export const Marklist = ({ data, setData }) => {
             <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm mt-6 marklist-graph">
                 <h3 class="font-bold mb-4 print:text-sm">Class Performance Analysis (Graphical)</h3>
                 
-                <!-- Subject Performance Bars -->
                 <div class="mb-6">
-                        <h4 class="text-xs font-bold text-slate-500 uppercase mb-3">Subject Mean Scores</h4>
-                        <div class="space-y-3">
-                            ${subjects.map(subject => {
-                                const validScores = students.map(s => {
-                                    const a = data.assessments.find(as => as.studentId === s.id && as.subject === subject && as.term === selectedTerm && as.examType === selectedExamType && as.academicYear === data.settings.academicYear);
-                                    return a ? Number(a.score) : null;
-                                }).filter(s => s !== null);
-                                const avg = validScores.length > 0 ? Math.round(validScores.reduce((a, b) => a + b, 0) / validScores.length) : 0;
-                                const gradeInfo = Storage.getGradeInfo(avg);
-                                const barColor = gradeInfo?.level?.startsWith('EE') ? 'bg-green-500' : 
-                                                gradeInfo?.level?.startsWith('ME') ? 'bg-blue-500' : 
-                                                gradeInfo?.level?.startsWith('AE') ? 'bg-yellow-500' : 
-                                                gradeInfo?.level?.startsWith('BE') ? 'bg-red-500' : 'bg-slate-400';
-                                return html`
-                                    <div class="flex items-center gap-3">
-                                        <span class="text-[10px] font-bold text-slate-600 w-32 truncate">${subject}</span>
-                                        <div class="flex-1 h-5 bg-slate-100 rounded-full overflow-hidden">
-                                            <div class="${barColor} h-full rounded-full marklist-bar" style="width: ${avg}%"></div>
-                                        </div>
-                                        <span class="text-[10px] font-bold text-slate-700 w-12 text-right">${avg}%</span>
-                                        <span class="text-[8px] font-bold px-2 py-0.5 rounded ${gradeInfo?.level?.startsWith('EE') ? 'bg-green-100 text-green-700' : 
-                                            gradeInfo?.level?.startsWith('ME') ? 'bg-blue-100 text-blue-700' : 
-                                            gradeInfo?.level?.startsWith('AE') ? 'bg-yellow-100 text-yellow-700' : 
-                                            gradeInfo?.level?.startsWith('BE') ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-500'}">
-                                            ${gradeInfo?.label || '-'}
-                                        </span>
-                                    </div>
-                                `;
-                            })}
-                        </div>
-                    </div>
-
-                    <!-- Performance Distribution -->
-                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        ${subjects.slice(0, 4).map(subject => {
-                            const subjectScores = students.map(s => {
-                                const a = data.assessments.find(as => as.studentId === s.id && as.subject === subject && as.term === selectedTerm && as.examType === selectedExamType && as.academicYear === data.settings.academicYear);
+                    <h4 class="text-xs font-bold text-slate-500 uppercase mb-3">Subject Mean Scores</h4>
+                    <div class="space-y-3">
+                        ${subjects.map(subject => {
+                            const validScores = students.map(s => {
+                                const a = assessmentsList.find(as => 
+                                    as.studentId === s.id && 
+                                    as.subject === subject && 
+                                    as.term === selectedTerm && 
+                                    as.examType === selectedExamType &&
+                                    as.academicYear === academicYear
+                                );
                                 return a ? Number(a.score) : null;
                             }).filter(s => s !== null);
-                            const eeCount = subjectScores.filter(s => Storage.getGradeInfo(s)?.level?.startsWith('EE')).length;
-                            const meCount = subjectScores.filter(s => Storage.getGradeInfo(s)?.level?.startsWith('ME')).length;
-                            const aeCount = subjectScores.filter(s => Storage.getGradeInfo(s)?.level?.startsWith('AE')).length;
-                            const beCount = subjectScores.filter(s => Storage.getGradeInfo(s)?.level?.startsWith('BE')).length;
-                            const maxCount = Math.max(eeCount, meCount, aeCount, beCount, 1);
+                            const avg = validScores.length > 0 ? Math.round(validScores.reduce((a, b) => a + b, 0) / validScores.length) : 0;
+                            const gradeInfo = Storage.getGradeInfo(avg);
+                            const barColor = gradeInfo?.level?.startsWith('EE') ? 'bg-green-500' : 
+                                            gradeInfo?.level?.startsWith('ME') ? 'bg-blue-500' : 
+                                            gradeInfo?.level?.startsWith('AE') ? 'bg-yellow-500' : 
+                                            gradeInfo?.level?.startsWith('BE') ? 'bg-red-500' : 'bg-slate-400';
                             return html`
-                                <div class="p-3 bg-slate-50 rounded-xl marklist-graph">
-                                    <p class="text-[9px] font-bold text-slate-500 uppercase mb-2 truncate">${subject}</p>
-                                    <div class="space-y-1">
-                                        <div class="flex items-center gap-2">
-                                            <span class="w-8 text-[8px] font-bold text-green-600">EE</span>
-                                            <div class="flex-1 h-3 bg-slate-200 rounded-full overflow-hidden">
-                                                <div class="bg-green-500 h-full marklist-bar" style="width: ${(eeCount/maxCount)*100}%"></div>
-                                            </div>
-                                            <span class="text-[8px] font-bold w-4">${eeCount}</span>
-                                        </div>
-                                        <div class="flex items-center gap-2">
-                                            <span class="w-8 text-[8px] font-bold text-blue-600">ME</span>
-                                            <div class="flex-1 h-3 bg-slate-200 rounded-full overflow-hidden">
-                                                <div class="bg-blue-500 h-full marklist-bar" style="width: ${(meCount/maxCount)*100}%"></div>
-                                            </div>
-                                            <span class="text-[8px] font-bold w-4">${meCount}</span>
-                                        </div>
-                                        <div class="flex items-center gap-2">
-                                            <span class="w-8 text-[8px] font-bold text-yellow-600">AE</span>
-                                            <div class="flex-1 h-3 bg-slate-200 rounded-full overflow-hidden">
-                                                <div class="bg-yellow-500 h-full marklist-bar" style="width: ${(aeCount/maxCount)*100}%"></div>
-                                            </div>
-                                            <span class="text-[8px] font-bold w-4">${aeCount}</span>
-                                        </div>
-                                        <div class="flex items-center gap-2">
-                                            <span class="w-8 text-[8px] font-bold text-red-600">BE</span>
-                                            <div class="flex-1 h-3 bg-slate-200 rounded-full overflow-hidden">
-                                                <div class="bg-red-500 h-full marklist-bar" style="width: ${(beCount/maxCount)*100}%"></div>
-                                            </div>
-                                            <span class="text-[8px] font-bold w-4">${beCount}</span>
-                                        </div>
+                                <div key=${subject} class="flex items-center gap-3">
+                                    <span class="text-[10px] font-bold text-slate-600 w-32 truncate">${subject}</span>
+                                    <div class="flex-1 h-5 bg-slate-100 rounded-full overflow-hidden">
+                                        <div class="${barColor} h-full rounded-full marklist-bar" style="width: ${avg}%"></div>
                                     </div>
+                                    <span class="text-[10px] font-bold text-slate-700 w-12 text-right">${avg}%</span>
+                                    <span class="text-[8px] font-bold px-2 py-0.5 rounded ${gradeInfo?.level?.startsWith('EE') ? 'bg-green-100 text-green-700' : 
+                                        gradeInfo?.level?.startsWith('ME') ? 'bg-blue-100 text-blue-700' : 
+                                        gradeInfo?.level?.startsWith('AE') ? 'bg-yellow-100 text-yellow-700' : 
+                                        gradeInfo?.level?.startsWith('BE') ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-500'}">
+                                        ${gradeInfo?.label || '-'}
+                                    </span>
                                 </div>
                             `;
                         })}
                     </div>
+                </div>
 
-                    <!-- Overall Class Stats -->
-                    <div class="mt-6 grid grid-cols-4 gap-4">
-                        <div class="p-3 bg-green-50 rounded-xl border border-green-100 text-center marklist-graph">
-                            <p class="text-lg font-black text-green-700">${students.reduce((sum, s) => {
-                                const valid = subjects.map(subj => {
-                                    const a = data.assessments.find(as => as.studentId === s.id && as.subject === subj && as.term === selectedTerm && as.examType === selectedExamType && as.academicYear === data.settings.academicYear);
-                                    return a ? Number(a.score) : null;
-                                }).filter(x => x !== null);
-                                return sum + (valid.length > 0 ? valid.reduce((a,b) => a+b,0)/valid.length : 0);
-                            }, 0) > 0 ? Math.round(students.reduce((sum, s) => {
-                                const valid = subjects.map(subj => {
-                                    const a = data.assessments.find(as => as.studentId === s.id && as.subject === subj && as.term === selectedTerm && as.examType === selectedExamType && as.academicYear === data.settings.academicYear);
-                                    return a ? Number(a.score) : null;
-                                }).filter(x => x !== null);
-                                return sum + (valid.length > 0 ? valid.reduce((a,b) => a+b,0)/valid.length : 0);
-                            }, 0) / students.length) : 0}%</p>
-                            <p class="text-[8px] font-bold text-green-600 uppercase">Class Mean</p>
-                        </div>
-                        <div class="p-3 bg-blue-50 rounded-xl border border-blue-100 text-center marklist-graph">
-                            <p class="text-lg font-black text-blue-700">${subjects.reduce((sum, s) => {
-                                const valid = students.map(st => {
-                                    const a = data.assessments.find(as => as.studentId === st.id && as.subject === s && as.term === selectedTerm && as.examType === selectedExamType && as.academicYear === data.settings.academicYear);
-                                    return a ? Number(a.score) : null;
-                                }).filter(x => x !== null);
-                                return sum + (valid.length > 0 ? valid.reduce((a,b) => a+b,0)/valid.length : 0);
-                            }, 0) > 0 ? Math.round(subjects.reduce((sum, s) => {
-                                const valid = students.map(st => {
-                                    const a = data.assessments.find(as => as.studentId === st.id && as.subject === s && as.term === selectedTerm && as.examType === selectedExamType && as.academicYear === data.settings.academicYear);
-                                    return a ? Number(a.score) : null;
-                                }).filter(x => x !== null);
-                                return sum + (valid.length > 0 ? valid.reduce((a,b) => a+b,0)/valid.length : 0);
-                            }, 0) / subjects.length) : 0}%</p>
-                            <p class="text-[8px] font-bold text-blue-600 uppercase">Subject Mean</p>
-                        </div>
-                        <div class="p-3 bg-purple-50 rounded-xl border border-purple-100 text-center marklist-graph">
-                            <p class="text-lg font-black text-purple-700">${students.length}</p>
-                            <p class="text-[8px] font-bold text-purple-600 uppercase">Total Students</p>
-                        </div>
-                        <div class="p-3 bg-orange-50 rounded-xl border border-orange-100 text-center marklist-graph">
-                            <p class="text-lg font-black text-orange-700">${Math.round(students.reduce((sum, s) => {
-                                const valid = subjects.map(subj => {
-                                    const a = data.assessments.find(as => as.studentId === s.id && as.subject === subj && as.term === selectedTerm && as.examType === selectedExamType && as.academicYear === data.settings.academicYear);
-                                    return a ? Number(a.score) : null;
-                                }).filter(x => x !== null);
-                                return sum + (valid.length > 0 ? valid.reduce((a,b) => a+b,0)/valid.length : 0);
-                            }, 0) / students.length / 12.5) || '-'}</p>
-                            <p class="text-[8px] font-bold text-orange-600 uppercase">Overall Points</p>
-                        </div>
+                <div class="mt-6 grid grid-cols-4 gap-4">
+                    <div class="p-3 bg-green-50 rounded-xl border border-green-100 text-center marklist-graph">
+                        <p class="text-lg font-black text-green-700">${students.length > 0 ? Math.round(students.reduce((sum, s) => {
+                            const valid = subjects.map(subj => {
+                                const a = assessmentsList.find(as => 
+                                    as.studentId === s.id && 
+                                    as.subject === subj && 
+                                    as.term === selectedTerm && 
+                                    as.examType === selectedExamType &&
+                                    as.academicYear === academicYear
+                                );
+                                return a ? Number(a.score) : null;
+                            }).filter(x => x !== null);
+                            return sum + (valid.length > 0 ? valid.reduce((a,b) => a+b,0)/valid.length : 0);
+                        }, 0) / students.length) : 0}%</p>
+                        <p class="text-[8px] font-bold text-green-600 uppercase">Class Mean</p>
+                    </div>
+                    <div class="p-3 bg-blue-50 rounded-xl border border-blue-100 text-center marklist-graph">
+                        <p class="text-lg font-black text-blue-700">${subjects.length > 0 ? Math.round(subjects.reduce((sum, s) => {
+                            const valid = students.map(st => {
+                                const a = assessmentsList.find(as => 
+                                    as.studentId === st.id && 
+                                    as.subject === s && 
+                                    as.term === selectedTerm && 
+                                    as.examType === selectedExamType &&
+                                    as.academicYear === academicYear
+                                );
+                                return a ? Number(a.score) : null;
+                            }).filter(x => x !== null);
+                            return sum + (valid.length > 0 ? valid.reduce((a,b) => a+b,0)/valid.length : 0);
+                        }, 0) / subjects.length) : 0}%</p>
+                        <p class="text-[8px] font-bold text-blue-600 uppercase">Subject Mean</p>
+                    </div>
+                    <div class="p-3 bg-purple-50 rounded-xl border border-purple-100 text-center marklist-graph">
+                        <p class="text-lg font-black text-purple-700">${students.length}</p>
+                        <p class="text-[8px] font-bold text-purple-600 uppercase">Total Students</p>
+                    </div>
+                    <div class="p-3 bg-orange-50 rounded-xl border border-orange-100 text-center marklist-graph">
+                        <p class="text-lg font-black text-orange-700">${students.length > 0 ? Math.round(students.reduce((sum, s) => {
+                            const valid = subjects.map(subj => {
+                                const a = assessmentsList.find(as => 
+                                    as.studentId === s.id && 
+                                    as.subject === subj && 
+                                    as.term === selectedTerm && 
+                                    as.examType === selectedExamType &&
+                                    as.academicYear === academicYear
+                                );
+                                return a ? Number(a.score) : null;
+                            }).filter(x => x !== null);
+                            return sum + (valid.length > 0 ? valid.reduce((a,b) => a+b,0)/valid.length : 0);
+                        }, 0) / students.length / 12.5) || '-' : '-'}</p>
+                        <p class="text-[8px] font-bold text-orange-600 uppercase">Overall Points</p>
                     </div>
                 </div>
             </div>

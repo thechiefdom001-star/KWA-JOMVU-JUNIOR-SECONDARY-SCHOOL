@@ -41,7 +41,7 @@ const App = () => {
     }, [data]);
 
     useEffect(() => {
-        const ws = window.websim || websim;
+        const ws = window.websim;
         if (!ws) return;
 
         const initCloudSync = async () => {

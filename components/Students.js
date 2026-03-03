@@ -8,6 +8,7 @@ const html = htm.bind(h);
 export const Students = ({ data, setData, onSelectStudent }) => {
     const [showAdd, setShowAdd] = useState(false);
     const [filterGrade, setFilterGrade] = useState('ALL');
+    const [filterStream, setFilterStream] = useState('ALL');
     const [filterFinance, setFilterFinance] = useState('ALL');
     
     const defaultFeeOptions = [
@@ -25,16 +26,17 @@ export const Students = ({ data, setData, onSelectStudent }) => {
     const feeOptions = [...defaultFeeOptions, ...customFeeOptions];
 
     const [editingId, setEditingId] = useState(null);
+    const streams = data.settings.streams || ['A', 'B', 'C'];
     const [newStudent, setNewStudent] = useState({ 
         name: '', 
         grade: data.settings.grades[0] || 'GRADE 1', 
+        stream: streams[0] || '',
         category: 'Normal',
         admissionNo: '',
         admissionDate: new Date().toISOString().slice(0,10),
         assessmentNo: '',
         upiNo: '',
         parentContact: '',
-        stream: '',
         previousArrears: 0,
         selectedFees: ['t1', 't2', 't3', 'admission', 'diary', 'development', 'pta'] 
     });
@@ -122,8 +124,9 @@ export const Students = ({ data, setData, onSelectStudent }) => {
 
     const filteredStudents = (data.students || []).filter(s => {
         const matchesGrade = filterGrade === 'ALL' || s.grade === filterGrade;
+        const matchesStream = filterStream === 'ALL' || s.stream === filterStream;
         
-        if (filterFinance === 'ALL') return matchesGrade;
+        if (filterFinance === 'ALL') return matchesGrade && matchesStream;
 
         const feeStructure = data.settings.feeStructures?.find(f => f.grade === s.grade);
         const selectedKeys = s.selectedFees || ['t1', 't2', 't3'];
@@ -131,11 +134,11 @@ export const Students = ({ data, setData, onSelectStudent }) => {
         const totalPaid = (data.payments || []).filter(p => p.studentId === s.id).reduce((sum, p) => sum + Number(p.amount), 0);
         const balance = totalDue - totalPaid;
 
-        if (filterFinance === 'FULL') return matchesGrade && balance <= 0 && totalDue > 0;
-        if (filterFinance === 'HALF') return matchesGrade && totalPaid >= (totalDue / 2) && balance > 0;
-        if (filterFinance === 'ARREARS') return matchesGrade && balance > 0;
+        if (filterFinance === 'FULL') return matchesGrade && matchesStream && balance <= 0 && totalDue > 0;
+        if (filterFinance === 'HALF') return matchesGrade && matchesStream && totalPaid >= (totalDue / 2) && balance > 0;
+        if (filterFinance === 'ARREARS') return matchesGrade && matchesStream && balance > 0;
         
-        return matchesGrade;
+        return matchesGrade && matchesStream;
     });
 
     return html`
@@ -153,6 +156,14 @@ export const Students = ({ data, setData, onSelectStudent }) => {
                     >
                         <option value="ALL">All Grades</option>
                         ${data.settings.grades.map(g => html`<option value=${g}>${g}</option>`)}
+                    </select>
+                    <select 
+                        class="bg-white border border-slate-200 text-slate-600 px-4 py-2 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500"
+                        value=${filterStream}
+                        onChange=${(e) => setFilterStream(e.target.value)}
+                    >
+                        <option value="ALL">All Streams</option>
+                        ${streams.map(s => html`<option value=${s}>Stream ${s}</option>`)}
                     </select>
                     <select 
                         class="bg-white border border-slate-200 text-slate-600 px-4 py-2 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500"
@@ -254,13 +265,14 @@ export const Students = ({ data, setData, onSelectStudent }) => {
                             />
                         </div>
                         <div class="space-y-1">
-                            <label class="text-[10px] font-bold text-slate-400 uppercase ml-1">Stream / House</label>
-                            <input 
-                                placeholder="e.g. Blue, North" 
+                            <label class="text-[10px] font-bold text-slate-400 uppercase ml-1">Stream</label>
+                            <select
                                 class="w-full p-3 bg-slate-50 rounded-lg border-0 focus:ring-2 focus:ring-blue-500 outline-none"
                                 value=${newStudent.stream}
-                                onInput=${(e) => setNewStudent({...newStudent, stream: e.target.value})}
-                            />
+                                onChange=${(e) => setNewStudent({...newStudent, stream: e.target.value})}
+                            >
+                                ${streams.map(s => html`<option value=${s}>Stream ${s}</option>`)}
+                            </select>
                         </div>
                         <div class="space-y-1">
                             <label class="text-[10px] font-bold text-slate-400 uppercase ml-1">Parent Contact</label>
@@ -336,7 +348,7 @@ export const Students = ({ data, setData, onSelectStudent }) => {
                                 <td class="px-6 py-4 text-slate-700 text-xs font-bold">${student.parentContact || '-'}</td>
                                 <td class="px-6 py-4">
                                     <div class="flex flex-col gap-1">
-                                        <span class="bg-slate-200 px-2 py-1 rounded text-[10px] font-bold uppercase whitespace-nowrap">${student.grade}</span>
+                                        <span class="bg-slate-200 px-2 py-1 rounded text-[10px] font-bold uppercase whitespace-nowrap">${student.grade}${student.stream || ''}</span>
                                         ${['GRADE 10', 'GRADE 11', 'GRADE 12'].includes(student.grade) && html`
                                             <span class="text-[8px] font-black text-blue-600 uppercase tracking-tighter">
                                                 ${student.seniorPathway ? student.seniorPathway.replace(/([A-Z])/g, ' $1') : 'No Pathway'}

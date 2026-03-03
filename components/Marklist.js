@@ -166,26 +166,142 @@ export const Marklist = ({ data, setData }) => {
                 ${students.length === 0 && html`<div class="p-12 text-center text-slate-400">No students registered in this grade.</div>`}
             </div>
 
-            <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm no-print">
-                <h3 class="font-bold mb-4">Class Performance Analysis (Graphical)</h3>
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    ${subjects.map(subject => {
-                        const subjectAssessments = data.assessments.filter(a => a.subject === subject && students.some(s => s.id === a.studentId));
-                        const meCount = subjectAssessments.filter(a => a.level === 'EE' || a.level === 'ME').length;
-                        const pct = students.length > 0 ? (meCount / students.length) * 100 : 0;
-                        return html`
-                            <div class="text-center p-4 bg-slate-50 rounded-xl">
-                                <div class="relative w-16 h-16 mx-auto mb-2">
-                                    <svg class="w-full h-full" viewBox="0 0 36 36">
-                                        <path class="text-slate-200" stroke-width="3" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                                        <path class="text-blue-600" stroke-dasharray="${pct}, 100" stroke-width="3" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                                    </svg>
-                                    <span class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[10px] font-bold">${Math.round(pct)}%</span>
+            <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm mt-6 marklist-graph">
+                <h3 class="font-bold mb-4 print:text-sm">Class Performance Analysis (Graphical)</h3>
+                
+                <!-- Subject Performance Bars -->
+                <div class="mb-6">
+                        <h4 class="text-xs font-bold text-slate-500 uppercase mb-3">Subject Mean Scores</h4>
+                        <div class="space-y-3">
+                            ${subjects.map(subject => {
+                                const validScores = students.map(s => {
+                                    const a = data.assessments.find(as => as.studentId === s.id && as.subject === subject && as.term === selectedTerm && as.examType === selectedExamType && as.academicYear === data.settings.academicYear);
+                                    return a ? Number(a.score) : null;
+                                }).filter(s => s !== null);
+                                const avg = validScores.length > 0 ? Math.round(validScores.reduce((a, b) => a + b, 0) / validScores.length) : 0;
+                                const gradeInfo = Storage.getGradeInfo(avg);
+                                const barColor = gradeInfo?.level?.startsWith('EE') ? 'bg-green-500' : 
+                                                gradeInfo?.level?.startsWith('ME') ? 'bg-blue-500' : 
+                                                gradeInfo?.level?.startsWith('AE') ? 'bg-yellow-500' : 
+                                                gradeInfo?.level?.startsWith('BE') ? 'bg-red-500' : 'bg-slate-400';
+                                return html`
+                                    <div class="flex items-center gap-3">
+                                        <span class="text-[10px] font-bold text-slate-600 w-32 truncate">${subject}</span>
+                                        <div class="flex-1 h-5 bg-slate-100 rounded-full overflow-hidden">
+                                            <div class="${barColor} h-full rounded-full marklist-bar" style="width: ${avg}%"></div>
+                                        </div>
+                                        <span class="text-[10px] font-bold text-slate-700 w-12 text-right">${avg}%</span>
+                                        <span class="text-[8px] font-bold px-2 py-0.5 rounded ${gradeInfo?.level?.startsWith('EE') ? 'bg-green-100 text-green-700' : 
+                                            gradeInfo?.level?.startsWith('ME') ? 'bg-blue-100 text-blue-700' : 
+                                            gradeInfo?.level?.startsWith('AE') ? 'bg-yellow-100 text-yellow-700' : 
+                                            gradeInfo?.level?.startsWith('BE') ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-500'}">
+                                            ${gradeInfo?.label || '-'}
+                                        </span>
+                                    </div>
+                                `;
+                            })}
+                        </div>
+                    </div>
+
+                    <!-- Performance Distribution -->
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        ${subjects.slice(0, 4).map(subject => {
+                            const subjectScores = students.map(s => {
+                                const a = data.assessments.find(as => as.studentId === s.id && as.subject === subject && as.term === selectedTerm && as.examType === selectedExamType && as.academicYear === data.settings.academicYear);
+                                return a ? Number(a.score) : null;
+                            }).filter(s => s !== null);
+                            const eeCount = subjectScores.filter(s => Storage.getGradeInfo(s)?.level?.startsWith('EE')).length;
+                            const meCount = subjectScores.filter(s => Storage.getGradeInfo(s)?.level?.startsWith('ME')).length;
+                            const aeCount = subjectScores.filter(s => Storage.getGradeInfo(s)?.level?.startsWith('AE')).length;
+                            const beCount = subjectScores.filter(s => Storage.getGradeInfo(s)?.level?.startsWith('BE')).length;
+                            const maxCount = Math.max(eeCount, meCount, aeCount, beCount, 1);
+                            return html`
+                                <div class="p-3 bg-slate-50 rounded-xl marklist-graph">
+                                    <p class="text-[9px] font-bold text-slate-500 uppercase mb-2 truncate">${subject}</p>
+                                    <div class="space-y-1">
+                                        <div class="flex items-center gap-2">
+                                            <span class="w-8 text-[8px] font-bold text-green-600">EE</span>
+                                            <div class="flex-1 h-3 bg-slate-200 rounded-full overflow-hidden">
+                                                <div class="bg-green-500 h-full marklist-bar" style="width: ${(eeCount/maxCount)*100}%"></div>
+                                            </div>
+                                            <span class="text-[8px] font-bold w-4">${eeCount}</span>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <span class="w-8 text-[8px] font-bold text-blue-600">ME</span>
+                                            <div class="flex-1 h-3 bg-slate-200 rounded-full overflow-hidden">
+                                                <div class="bg-blue-500 h-full marklist-bar" style="width: ${(meCount/maxCount)*100}%"></div>
+                                            </div>
+                                            <span class="text-[8px] font-bold w-4">${meCount}</span>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <span class="w-8 text-[8px] font-bold text-yellow-600">AE</span>
+                                            <div class="flex-1 h-3 bg-slate-200 rounded-full overflow-hidden">
+                                                <div class="bg-yellow-500 h-full marklist-bar" style="width: ${(aeCount/maxCount)*100}%"></div>
+                                            </div>
+                                            <span class="text-[8px] font-bold w-4">${aeCount}</span>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <span class="w-8 text-[8px] font-bold text-red-600">BE</span>
+                                            <div class="flex-1 h-3 bg-slate-200 rounded-full overflow-hidden">
+                                                <div class="bg-red-500 h-full marklist-bar" style="width: ${(beCount/maxCount)*100}%"></div>
+                                            </div>
+                                            <span class="text-[8px] font-bold w-4">${beCount}</span>
+                                        </div>
+                                    </div>
                                 </div>
-                                <p class="text-[10px] font-bold text-slate-500 uppercase">${subject}</p>
-                            </div>
-                        `;
-                    })}
+                            `;
+                        })}
+                    </div>
+
+                    <!-- Overall Class Stats -->
+                    <div class="mt-6 grid grid-cols-4 gap-4">
+                        <div class="p-3 bg-green-50 rounded-xl border border-green-100 text-center marklist-graph">
+                            <p class="text-lg font-black text-green-700">${students.reduce((sum, s) => {
+                                const valid = subjects.map(subj => {
+                                    const a = data.assessments.find(as => as.studentId === s.id && as.subject === subj && as.term === selectedTerm && as.examType === selectedExamType && as.academicYear === data.settings.academicYear);
+                                    return a ? Number(a.score) : null;
+                                }).filter(x => x !== null);
+                                return sum + (valid.length > 0 ? valid.reduce((a,b) => a+b,0)/valid.length : 0);
+                            }, 0) > 0 ? Math.round(students.reduce((sum, s) => {
+                                const valid = subjects.map(subj => {
+                                    const a = data.assessments.find(as => as.studentId === s.id && as.subject === subj && as.term === selectedTerm && as.examType === selectedExamType && as.academicYear === data.settings.academicYear);
+                                    return a ? Number(a.score) : null;
+                                }).filter(x => x !== null);
+                                return sum + (valid.length > 0 ? valid.reduce((a,b) => a+b,0)/valid.length : 0);
+                            }, 0) / students.length) : 0}%</p>
+                            <p class="text-[8px] font-bold text-green-600 uppercase">Class Mean</p>
+                        </div>
+                        <div class="p-3 bg-blue-50 rounded-xl border border-blue-100 text-center marklist-graph">
+                            <p class="text-lg font-black text-blue-700">${subjects.reduce((sum, s) => {
+                                const valid = students.map(st => {
+                                    const a = data.assessments.find(as => as.studentId === st.id && as.subject === s && as.term === selectedTerm && as.examType === selectedExamType && as.academicYear === data.settings.academicYear);
+                                    return a ? Number(a.score) : null;
+                                }).filter(x => x !== null);
+                                return sum + (valid.length > 0 ? valid.reduce((a,b) => a+b,0)/valid.length : 0);
+                            }, 0) > 0 ? Math.round(subjects.reduce((sum, s) => {
+                                const valid = students.map(st => {
+                                    const a = data.assessments.find(as => as.studentId === st.id && as.subject === s && as.term === selectedTerm && as.examType === selectedExamType && as.academicYear === data.settings.academicYear);
+                                    return a ? Number(a.score) : null;
+                                }).filter(x => x !== null);
+                                return sum + (valid.length > 0 ? valid.reduce((a,b) => a+b,0)/valid.length : 0);
+                            }, 0) / subjects.length) : 0}%</p>
+                            <p class="text-[8px] font-bold text-blue-600 uppercase">Subject Mean</p>
+                        </div>
+                        <div class="p-3 bg-purple-50 rounded-xl border border-purple-100 text-center marklist-graph">
+                            <p class="text-lg font-black text-purple-700">${students.length}</p>
+                            <p class="text-[8px] font-bold text-purple-600 uppercase">Total Students</p>
+                        </div>
+                        <div class="p-3 bg-orange-50 rounded-xl border border-orange-100 text-center marklist-graph">
+                            <p class="text-lg font-black text-orange-700">${Math.round(students.reduce((sum, s) => {
+                                const valid = subjects.map(subj => {
+                                    const a = data.assessments.find(as => as.studentId === s.id && as.subject === subj && as.term === selectedTerm && as.examType === selectedExamType && as.academicYear === data.settings.academicYear);
+                                    return a ? Number(a.score) : null;
+                                }).filter(x => x !== null);
+                                return sum + (valid.length > 0 ? valid.reduce((a,b) => a+b,0)/valid.length : 0);
+                            }, 0) / students.length / 12.5) || '-'}</p>
+                            <p class="text-[8px] font-bold text-orange-600 uppercase">Overall Points</p>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

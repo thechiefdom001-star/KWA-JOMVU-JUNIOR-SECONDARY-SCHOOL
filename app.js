@@ -112,7 +112,7 @@ const App = () => {
         const root = document.documentElement;
         root.style.setProperty('--primary-color', data.settings.primaryColor || '#2563eb');
         root.style.setProperty('--secondary-color', data.settings.secondaryColor || '#64748b');
-        
+
         if (data.settings.theme === 'dark') {
             document.body.classList.add('bg-slate-950', 'text-slate-100');
             document.body.classList.remove('bg-gray-50', 'text-slate-900');
@@ -361,11 +361,10 @@ const App = () => {
                 <div class="flex items-center gap-3">
                     <button 
                         onClick=${handleCloudPush}
-                        class=${`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase transition-all border ${
-                            isSyncing 
-                            ? 'bg-blue-50 border-blue-200 text-blue-600 animate-pulse' 
-                            : 'bg-slate-50 border-slate-100 text-slate-500 hover:border-primary hover:text-primary'
-                        }`}
+                        class=${`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase transition-all border ${isSyncing
+            ? 'bg-blue-50 border-blue-200 text-blue-600 animate-pulse'
+            : 'bg-slate-50 border-slate-100 text-slate-500 hover:border-primary hover:text-primary'
+        }`}
                     >
                         <span class=${isSyncing ? 'animate-spin' : ''}>${isSyncing ? '⏳' : '☁️'}</span>
                         <span class="hidden sm:inline">${isSyncing ? 'Syncing...' : 'Cloud Sync'}</span>
@@ -452,22 +451,22 @@ const App = () => {
 
 const StudentDetail = ({ student, data, setData, onBack, isBatch = false, initialTerm = 'T1' }) => {
     if (!student) return html`<div>Student not found</div>`;
-    
+
     const [selectedTerm, setSelectedTerm] = useState(initialTerm);
-    
+
     const settings = data.settings;
     const examTypes = ['Opener', 'Mid-Term', 'End-Term'];
     const isFullYear = selectedTerm === 'FULL';
-    
+
     const getAssessmentsForTerm = (term) => {
         if (term === 'FULL') {
             return data.assessments.filter(a => a.studentId === student.id);
         }
         return data.assessments.filter(a => a.studentId === student.id && a.term === term);
     };
-    
+
     const assessments = getAssessmentsForTerm(selectedTerm);
-    
+
     // Calculate totals for summary cards based on subject averages
     const subjects = Storage.getSubjectsForGrade(student.grade);
     const subjectAverages = subjects.map(subject => {
@@ -482,7 +481,7 @@ const StudentDetail = ({ student, data, setData, onBack, isBatch = false, initia
     const totalPoints = subjectAverages.reduce((sum, avg) => sum + (avg !== null ? Storage.getGradeInfo(avg).points : 0), 0);
     const subjectCount = subjects.length;
     const overallLevel = Storage.getOverallLevel(totalPoints, subjectCount);
-    const attendancePercentage = isFullYear 
+    const attendancePercentage = isFullYear
         ? Storage.getStudentAttendance(student.id, data.attendance || [])
         : Storage.getStudentAttendance(student.id, data.attendance || [], selectedTerm);
 
@@ -497,25 +496,34 @@ const StudentDetail = ({ student, data, setData, onBack, isBatch = false, initia
                 }).filter(s => s !== null);
                 return scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null;
             });
+            const subjectPoints = {};
+            termSubjects.forEach((avg, idx) => {
+                const pts = avg !== null ? Storage.getGradeInfo(avg).points : 0;
+                subjectPoints[subjects[idx]] = pts;
+            });
             const termPoints = termSubjects.reduce((sum, avg) => sum + (avg !== null ? Storage.getGradeInfo(avg).points : 0), 0);
             const termLevel = Storage.getOverallLevel(termPoints, subjects.length);
             const termAttendance = Storage.getStudentAttendance(student.id, data.attendance || [], term);
-            const avgScore = termSubjects.filter(s => s !== null).length > 0 
-                ? Math.round(termSubjects.reduce((a, b) => a + (b || 0), 0) / termSubjects.filter(s => s !== null).length) 
+            const avgScore = termSubjects.filter(s => s !== null).length > 0
+                ? Math.round(termSubjects.reduce((a, b) => a + (b || 0), 0) / termSubjects.filter(s => s !== null).length)
                 : 0;
-            return { term, avgScore, termPoints, termLevel, termAttendance };
+            return { term, avgScore, termPoints, termLevel, termAttendance, subjectPoints };
         });
     };
 
     const yearSummary = isFullYear ? getYearSummary() : [];
     const gradeValues = { 'EE': 4, 'ME': 3, 'AE': 2, 'BE': 1 };
 
+    const t1Data = yearSummary[0] || {};
+    const t2Data = yearSummary[1] || {};
+    const t3Data = yearSummary[2] || {};
+
     const payments = data.payments.filter(p => p.studentId === student.id);
     const totalPaid = payments.reduce((sum, p) => sum + Number(p.amount), 0);
-    
+
     const feeStructure = data.settings.feeStructures.find(f => f.grade === student.grade);
     const feeKeys = ['t1', 't2', 't3', 'breakfast', 'lunch', 'trip', 'bookFund', 'caution', 'uniform', 'studentCard', 'remedial'];
-    
+
     // Calculate total due based ONLY on student's selected payable items
     const selectedKeys = student.selectedFees || ['t1', 't2', 't3'];
     const totalDue = feeStructure ? selectedKeys.reduce((sum, key) => sum + (feeStructure[key] || 0), 0) : 0;
@@ -556,11 +564,7 @@ const StudentDetail = ({ student, data, setData, onBack, isBatch = false, initia
                         <div class="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-1 text-slate-500 text-[10px]">
                             <div>
                                 <p class="text-[9px] font-bold text-slate-400 uppercase">Grade / Class</p>
-                                <p class="font-bold text-slate-900">${student.grade}</p>
-                            </div>
-                            <div>
-                                <p class="text-[9px] font-bold text-slate-400 uppercase">Stream / House</p>
-                                <p class="font-bold text-slate-900">${student.stream || 'N/A'}</p>
+                                <p class="font-bold text-slate-900">${student.grade}${student.stream ? student.stream : ''}</p>
                             </div>
                             <div>
                                 <p class="text-[9px] font-bold text-slate-400 uppercase">Admission No.</p>
@@ -594,11 +598,36 @@ const StudentDetail = ({ student, data, setData, onBack, isBatch = false, initia
                     </div>
                     <div class="p-2 bg-slate-50 rounded-lg print:p-1.5 border border-slate-100">
                         <p class="text-[8px] text-slate-500 font-bold uppercase">${isFullYear ? 'Year Avg' : 'Total Marks'}</p>
-                        <p class="text-sm font-bold print:text-[11px]">${isFullYear ? Math.round(totalMarks / 3) + '%' : totalMarks}</p>
+                        <p class="text-sm font-bold print:text-[11px]">${isFullYear
+            ? (() => {
+                const allScores = [];
+                yearSummary.forEach(ys => {
+                    subjects.forEach(subject => {
+                        const pts = ys.subjectPoints?.[subject] || 0;
+                        if (pts > 0) allScores.push(pts);
+                    });
+                });
+                if (allScores.length === 0) return '-';
+                const avgPts = allScores.reduce((a, b) => a + b, 0) / allScores.length;
+                return Math.round(avgPts * 12.5) + '%';
+            })()
+            : totalMarks}</p>
                     </div>
                     <div class="p-2 bg-indigo-50 rounded-lg print:p-1.5 border border-indigo-100">
                         <p class="text-[8px] text-indigo-600 font-bold uppercase">${isFullYear ? 'Avg Points' : 'Total Points'}</p>
-                        <p class="text-sm font-bold print:text-[11px]">${isFullYear ? Math.round(totalPoints / 3) : totalPoints}</p>
+                        <p class="text-sm font-bold print:text-[11px]">${isFullYear
+            ? (() => {
+                const allScores = [];
+                yearSummary.forEach(ys => {
+                    subjects.forEach(subject => {
+                        const pts = ys.subjectPoints?.[subject] || 0;
+                        if (pts > 0) allScores.push(pts);
+                    });
+                });
+                if (allScores.length === 0) return '-';
+                return (allScores.reduce((a, b) => a + b, 0) / allScores.length).toFixed(1);
+            })()
+            : totalPoints}</p>
                     </div>
                     <div class="p-2 bg-green-50 rounded-lg print:p-1.5 border border-green-100">
                         <p class="text-[8px] text-green-600 font-bold uppercase">Overall</p>
@@ -623,6 +652,7 @@ const StudentDetail = ({ student, data, setData, onBack, isBatch = false, initia
                                         <th class="p-2 print:p-1.5 text-center border-l bg-purple-50" colspan="3">Term 3</th>
                                         <th class="p-2 print:p-1.5 text-center border-l bg-orange-50" rowspan="2">Year Avg</th>
                                         <th class="p-2 print:p-1.5 text-center border-l" rowspan="2">Level</th>
+                                        <th class="p-2 print:p-1.5 text-center border-l font-black" rowspan="2">Pts</th>
                                     </tr>
                                     <tr class="text-[8px] uppercase font-black text-slate-500">
                                         <th class="p-1 print:p-0.5 text-center border-l bg-green-50">Op</th>
@@ -638,32 +668,32 @@ const StudentDetail = ({ student, data, setData, onBack, isBatch = false, initia
                                 </thead>
                                 <tbody class="divide-y print:divide-black">
                                     ${subjects.map(subject => {
-                                        const t1Assessments = data.assessments.filter(a => a.studentId === student.id && a.term === 'T1' && a.subject === subject);
-                                        const t2Assessments = data.assessments.filter(a => a.studentId === student.id && a.term === 'T2' && a.subject === subject);
-                                        const t3Assessments = data.assessments.filter(a => a.studentId === student.id && a.term === 'T3' && a.subject === subject);
-                                        
-                                        const getScores = (termAssessments) => {
-                                            const scores = {};
-                                            examTypes.forEach(type => {
-                                                const match = termAssessments.find(a => a.examType === type);
-                                                scores[type] = match ? Number(match.score) : null;
-                                            });
-                                            const valid = Object.values(scores).filter(s => s !== null);
-                                            return {
-                                                scores,
-                                                avg: valid.length > 0 ? Math.round(valid.reduce((a, b) => a + b, 0) / valid.length) : null
-                                            };
-                                        };
-                                        
-                                        const t1 = getScores(t1Assessments);
-                                        const t2 = getScores(t2Assessments);
-                                        const t3 = getScores(t3Assessments);
-                                        
-                                        const yearAvgScores = [t1.avg, t2.avg, t3.avg].filter(a => a !== null);
-                                        const yearAvg = yearAvgScores.length > 0 ? Math.round(yearAvgScores.reduce((a, b) => a + b, 0) / yearAvgScores.length) : null;
-                                        const gradeInfo = yearAvg !== null ? Storage.getGradeInfo(yearAvg) : null;
-                                        
-                                        return html`
+                const t1Assessments = data.assessments.filter(a => a.studentId === student.id && a.term === 'T1' && a.subject === subject);
+                const t2Assessments = data.assessments.filter(a => a.studentId === student.id && a.term === 'T2' && a.subject === subject);
+                const t3Assessments = data.assessments.filter(a => a.studentId === student.id && a.term === 'T3' && a.subject === subject);
+
+                const getScores = (termAssessments) => {
+                    const scores = {};
+                    examTypes.forEach(type => {
+                        const match = termAssessments.find(a => a.examType === type);
+                        scores[type] = match ? Number(match.score) : null;
+                    });
+                    const valid = Object.values(scores).filter(s => s !== null);
+                    return {
+                        scores,
+                        avg: valid.length > 0 ? Math.round(valid.reduce((a, b) => a + b, 0) / valid.length) : null
+                    };
+                };
+
+                const t1 = getScores(t1Assessments);
+                const t2 = getScores(t2Assessments);
+                const t3 = getScores(t3Assessments);
+
+                const yearAvgScores = [t1.avg, t2.avg, t3.avg].filter(a => a !== null);
+                const yearAvg = yearAvgScores.length > 0 ? Math.round(yearAvgScores.reduce((a, b) => a + b, 0) / yearAvgScores.length) : null;
+                const gradeInfo = yearAvg !== null ? Storage.getGradeInfo(yearAvg) : null;
+
+                return html`
                                             <tr class="print:break-inside-avoid hover:bg-slate-50 border-b print:border-black">
                                                 <td class="p-2 print:p-1.5 font-bold text-slate-800 print:text-[10px]">${subject}</td>
                                                 <td class="p-1 print:p-0.5 text-center text-slate-500 border-l bg-green-50/30 print:text-[9px]">${t1.scores['Opener'] ?? '-'}</td>
@@ -677,40 +707,73 @@ const StudentDetail = ({ student, data, setData, onBack, isBatch = false, initia
                                                 <td class="p-1 print:p-0.5 text-center text-slate-500 bg-purple-50/30 print:text-[9px]">${t3.scores['End-Term'] ?? '-'}</td>
                                                 <td class="p-2 print:p-1.5 text-center font-black text-orange-600 border-l bg-orange-50/30 print:text-[10px]">${yearAvg !== null ? yearAvg + '%' : '-'}</td>
                                                 <td class="p-2 print:p-1.5 text-center border-l">
-                                                    <span class=${`px-2 py-0.5 rounded-full text-[8px] font-bold uppercase ${
-                                                        gradeInfo && gradeInfo.level !== '-' ? (
-                                                            gradeInfo.level.startsWith('EE') ? 'bg-green-100 text-green-700' :
-                                                            gradeInfo.level.startsWith('ME') ? 'bg-blue-100 text-blue-700' :
-                                                            gradeInfo.level.startsWith('AE') ? 'bg-yellow-100 text-yellow-700' :
-                                                            'bg-red-100 text-red-700'
-                                                        ) : 'text-slate-300'
-                                                    }`}>
+                                                    <span class=${`px-2 py-0.5 rounded-full text-[8px] font-bold uppercase ${gradeInfo && gradeInfo.level !== '-' ? (
+                        gradeInfo.level.startsWith('EE') ? 'bg-green-100 text-green-700' :
+                            gradeInfo.level.startsWith('ME') ? 'bg-blue-100 text-blue-700' :
+                                gradeInfo.level.startsWith('AE') ? 'bg-yellow-100 text-yellow-700' :
+                                    'bg-red-100 text-red-700'
+                    ) : 'text-slate-300'
+                    }`}>
                                                         ${gradeInfo ? gradeInfo.level : '-'}
                                                     </span>
                                                 </td>
+                                                <td class="p-2 print:p-1.5 text-center border-l font-black text-slate-700 print:text-[10px]">
+                                                    ${gradeInfo ? gradeInfo.points : '-'}
+                                                </td>
                                             </tr>
                                         `;
-                                    })}
+            })}
                                 </tbody>
                                 <tfoot class="bg-slate-50 border-t-2 border-slate-200 font-bold text-slate-900">
                                     <tr class="print:border-black">
                                         <td class="p-2 print:p-1.5 uppercase text-[9px]">Term Totals</td>
                                         ${['T1', 'T2', 'T3'].map(term => {
-                                            const termAssessments = data.assessments.filter(a => a.studentId === student.id && a.term === term);
-                                            const sum = termAssessments.reduce((a, b) => a + Number(b.score), 0);
-                                            return html`<td colspan="3" class="p-2 print:p-1.5 text-center border-l text-[10px] print:text-[9px]">${sum || '-'}</td>`;
-                                        })}
+                const termAssessments = data.assessments.filter(a => a.studentId === student.id && a.term === term);
+                const sum = termAssessments.reduce((a, b) => a + Number(b.score), 0);
+                return html`<td colspan="3" class="p-2 print:p-1.5 text-center border-l text-[10px] print:text-[9px]">${sum || '-'}</td>`;
+            })}
                                         <td class="p-2 print:p-1.5 text-center border-l bg-orange-50/50 text-orange-700 text-[10px] print:text-[10px]">
-                                            ${Math.round(subjects.reduce((sum, subject) => {
-                                                const termAvgs = ['T1', 'T2', 'T3'].map(term => {
-                                                    const termAssessments = data.assessments.filter(a => a.studentId === student.id && a.term === term && a.subject === subject);
-                                                    const scores = termAssessments.map(a => Number(a.score));
-                                                    return scores.length > 0 ? scores.reduce((a,b)=>a+b,0)/scores.length : 0;
-                                                }).filter(s => s > 0);
-                                                return sum + (termAvgs.length > 0 ? termAvgs.reduce((a,b)=>a+b,0)/termAvgs.length : 0);
-                                            }, 0))}%
+                                            ${(() => {
+                const allTermPoints = [];
+                yearSummary.forEach(ys => {
+                    subjects.forEach(subject => {
+                        const pts = ys.subjectPoints?.[subject] || 0;
+                        if (pts > 0) allTermPoints.push(pts);
+                    });
+                });
+                if (allTermPoints.length === 0) return '-';
+                const avgPts = allTermPoints.reduce((a, b) => a + b, 0) / allTermPoints.length;
+                const avgScore = Math.round(avgPts * 12.5);
+                return avgScore + '%';
+            })()}
                                         </td>
-                                        <td class="p-2 print:p-1.5 text-center border-l font-black text-orange-700 print:text-[10px]">${Math.round(yearSummary.reduce((a, b) => a + (gradeValues[b.termLevel] || 0), 0) / 3)}</td>
+                                        <td class="p-2 print:p-1.5 text-center border-l font-black text-orange-700 print:text-[10px]">
+                                            ${(() => {
+                const allTermPoints = [];
+                yearSummary.forEach(ys => {
+                    subjects.forEach(subject => {
+                        const pts = ys.subjectPoints?.[subject] || 0;
+                        if (pts > 0) allTermPoints.push(pts);
+                    });
+                });
+                if (allTermPoints.length === 0) return '-';
+                const avgPts = allTermPoints.reduce((a, b) => a + b, 0) / allTermPoints.length;
+                return Storage.getOverallLevel(avgPts * subjects.length, subjects.length);
+            })()}
+                                        </td>
+                                        <td class="p-2 print:p-1.5 text-center border-l font-black text-orange-700 print:text-[10px]">
+                                            ${(() => {
+                const allTermPoints = [];
+                yearSummary.forEach(ys => {
+                    subjects.forEach(subject => {
+                        const pts = ys.subjectPoints?.[subject] || 0;
+                        if (pts > 0) allTermPoints.push(pts);
+                    });
+                });
+                if (allTermPoints.length === 0) return '-';
+                return (allTermPoints.reduce((a, b) => a + b, 0) / allTermPoints.length).toFixed(1);
+            })()}
+                                        </td>
                                     </tr>
                                 </tfoot>
                             </table>
@@ -734,20 +797,20 @@ const StudentDetail = ({ student, data, setData, onBack, isBatch = false, initia
                                 </thead>
                                 <tbody class="divide-y print:divide-black">
                                     ${subjects.map(subject => {
-                                        const scores = {};
-                                        examTypes.forEach(type => {
-                                            const match = assessments.find(a => a.subject === subject && a.examType === type);
-                                            scores[type] = match ? Number(match.score) : null;
-                                        });
+                const scores = {};
+                examTypes.forEach(type => {
+                    const match = assessments.find(a => a.subject === subject && a.examType === type);
+                    scores[type] = match ? Number(match.score) : null;
+                });
 
-                                        const validScores = Object.values(scores).filter(s => s !== null);
-                                        const average = validScores.length > 0 
-                                            ? Math.round(validScores.reduce((a, b) => a + b, 0) / validScores.length)
-                                            : null;
-                                        
-                                        const gradeInfo = average !== null ? Storage.getGradeInfo(average) : null;
-                                        
-                                        return html`
+                const validScores = Object.values(scores).filter(s => s !== null);
+                const average = validScores.length > 0
+                    ? Math.round(validScores.reduce((a, b) => a + b, 0) / validScores.length)
+                    : null;
+
+                const gradeInfo = average !== null ? Storage.getGradeInfo(average) : null;
+
+                return html`
                                             <tr class="print:break-inside-avoid hover:bg-slate-50 border-b print:border-black last:border-0">
                                                 <td class="p-2 print:p-1.5 font-bold text-slate-800 print:text-[11px]">
                                                     ${subject}
@@ -757,14 +820,13 @@ const StudentDetail = ({ student, data, setData, onBack, isBatch = false, initia
                                                 <td class="p-2 print:p-1.5 text-center text-slate-500 border-l font-medium print:text-[11px]">${scores['End-Term'] ?? '-'}</td>
                                                 <td class="p-2 print:p-1.5 text-center font-black text-blue-600 border-l bg-blue-50/30 print:text-[11px]">${average !== null ? average + '%' : '-'}</td>
                                                 <td class="p-2 print:p-1.5 text-center border-l">
-                                                    <span class=${`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
-                                                        gradeInfo && gradeInfo.level !== '-' ? (
-                                                            gradeInfo.level.startsWith('EE') ? 'bg-green-100 text-green-700' :
-                                                            gradeInfo.level.startsWith('ME') ? 'bg-blue-100 text-blue-700' :
-                                                            gradeInfo.level.startsWith('AE') ? 'bg-yellow-100 text-yellow-700' :
-                                                            'bg-red-100 text-red-700'
-                                                        ) : 'text-slate-300'
-                                                    }`}>
+                                                    <span class=${`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${gradeInfo && gradeInfo.level !== '-' ? (
+                        gradeInfo.level.startsWith('EE') ? 'bg-green-100 text-green-700' :
+                            gradeInfo.level.startsWith('ME') ? 'bg-blue-100 text-blue-700' :
+                                gradeInfo.level.startsWith('AE') ? 'bg-yellow-100 text-yellow-700' :
+                                    'bg-red-100 text-red-700'
+                    ) : 'text-slate-300'
+                    }`}>
                                                         ${gradeInfo ? gradeInfo.level : '-'}
                                                     </span>
                                                 </td>
@@ -773,40 +835,40 @@ const StudentDetail = ({ student, data, setData, onBack, isBatch = false, initia
                                                 </td>
                                             </tr>
                                         `;
-                                    })}
+            })}
                                 </tbody>
                                 <tfoot class="bg-slate-50 border-t-2 border-slate-200 font-bold text-slate-900">
                                     <tr class="print:border-black">
                                         <td class="p-2 print:p-1.5 uppercase text-[9px]">Learning Area Totals</td>
                                         ${['Opener', 'Mid-Term', 'End-Term'].map(type => {
-                                            const sum = assessments.filter(a => a.examType === type).reduce((a, b) => a + Number(b.score), 0);
-                                            return html`<td class="p-2 print:p-1.5 text-center border-l text-[10px] print:text-[11px]">${sum || '-'}</td>`;
-                                        })}
+                const sum = assessments.filter(a => a.examType === type).reduce((a, b) => a + Number(b.score), 0);
+                return html`<td class="p-2 print:p-1.5 text-center border-l text-[10px] print:text-[11px]">${sum || '-'}</td>`;
+            })}
                                         <td class="p-2 print:p-1.5 text-center border-l bg-blue-50/50 text-blue-700 text-[10px] print:text-[11px]">
                                             ${Math.round(Storage.getSubjectsForGrade(student.grade).reduce((sum, subject) => {
-                                                const subScores = assessments.filter(a => a.subject === subject).map(a => Number(a.score));
-                                                return sum + (subScores.length > 0 ? subScores.reduce((a,b)=>a+b,0)/subScores.length : 0);
-                                            }, 0)) || '-'}
+                const subScores = assessments.filter(a => a.subject === subject).map(a => Number(a.score));
+                return sum + (subScores.length > 0 ? subScores.reduce((a, b) => a + b, 0) / subScores.length : 0);
+            }, 0)) || '-'}
                                         </td>
                                         <td class="p-2 print:p-1.5 text-center border-l font-black text-blue-700 print:text-[11px]">${totalPoints}</td>
                                     </tr>
                                     <tr class="bg-white print:border-black">
                                         <td class="p-2 print:p-1.5 uppercase text-[9px] text-blue-600 font-black">Mean Score Average</td>
                                         ${['Opener', 'Mid-Term', 'End-Term'].map(type => {
-                                            const typeAssessments = assessments.filter(a => a.examType === type);
-                                            const count = Storage.getSubjectsForGrade(student.grade).length;
-                                            const avg = typeAssessments.length > 0 ? Math.round(typeAssessments.reduce((a, b) => a + Number(b.score), 0) / count) : 0;
-                                        return html`<td class="p-2 print:p-1.5 text-center border-l text-blue-600 font-black text-[10px] print:text-[11px]">${avg ? avg + '%' : '-'}</td>`;
-                                    })}
+                const typeAssessments = assessments.filter(a => a.examType === type);
+                const count = Storage.getSubjectsForGrade(student.grade).length;
+                const avg = typeAssessments.length > 0 ? Math.round(typeAssessments.reduce((a, b) => a + Number(b.score), 0) / count) : 0;
+                return html`<td class="p-2 print:p-1.5 text-center border-l text-blue-600 font-black text-[10px] print:text-[11px]">${avg ? avg + '%' : '-'}</td>`;
+            })}
                                     <td class="p-2 print:p-1.5 text-center border-l bg-blue-600 text-white text-[10px] print:text-[11px] font-black">
                                         ${(() => {
-                                            const subs = Storage.getSubjectsForGrade(student.grade);
-                                            const totalAvg = subs.reduce((sum, subject) => {
-                                                const subScores = assessments.filter(a => a.subject === subject).map(a => Number(a.score));
-                                                return sum + (subScores.length > 0 ? Math.round(subScores.reduce((a,b)=>a+b,0)/subScores.length) : 0);
-                                            }, 0);
-                                            return Math.round(totalAvg / subs.length) + '%';
-                                        })()}
+                const subs = Storage.getSubjectsForGrade(student.grade);
+                const totalAvg = subs.reduce((sum, subject) => {
+                    const subScores = assessments.filter(a => a.subject === subject).map(a => Number(a.score));
+                    return sum + (subScores.length > 0 ? Math.round(subScores.reduce((a, b) => a + b, 0) / subScores.length) : 0);
+                }, 0);
+                return Math.round(totalAvg / subs.length) + '%';
+            })()}
                                     </td>
                                     <td class="border-l"></td>
                                 </tr>
@@ -816,143 +878,125 @@ const StudentDetail = ({ student, data, setData, onBack, isBatch = false, initia
                 </div>
                 `}
 
+                <!-- Bar Graph Visualization -->
+                <div class="mt-4 print:mt-2">
+                    ${isFullYear ? html`
+                        <!-- Full Year: Bar graph showing term comparison per subject -->
+                        <div class="bg-white p-3 rounded-xl border border-slate-100 print:border-black">
+                            <h3 class="font-black text-[10px] uppercase text-slate-500 mb-3">Subject Performance Comparison</h3>
+                            <div class="flex flex-wrap gap-1 justify-center items-end h-32 print:h-24">
+                                ${subjects.map((subject, idx) => {
+                const t1Assessments = data.assessments.filter(a => a.studentId === student.id && a.term === 'T1' && a.subject === subject);
+                const t2Assessments = data.assessments.filter(a => a.studentId === student.id && a.term === 'T2' && a.subject === subject);
+                const t3Assessments = data.assessments.filter(a => a.studentId === student.id && a.term === 'T3' && a.subject === subject);
+                const getAvg = (assessments) => {
+                    const scores = assessments.map(a => Number(a.score));
+                    return scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
+                };
+                const t1 = getAvg(t1Assessments);
+                const t2 = getAvg(t2Assessments);
+                const t3 = getAvg(t3Assessments);
+                const maxVal = Math.max(t1, t2, t3, 1);
+                return html`
+                                        <div class="flex flex-col items-center">
+                                            <div class="flex items-end gap-0.5 h-20 print:h-16">
+                                                <div class="w-3 print:w-2 bg-green-400 rounded-t" style="height: ${(t1 / maxVal) * 100}%" title="T1: ${t1}%"></div>
+                                                <div class="w-3 print:w-2 bg-blue-400 rounded-t" style="height: ${(t2 / maxVal) * 100}%" title="T2: ${t2}%"></div>
+                                                <div class="w-3 print:w-2 bg-purple-400 rounded-t" style="height: ${(t3 / maxVal) * 100}%" title="T3: ${t3}%"></div>
+                                            </div>
+                                            <span class="text-[7px] text-slate-500 truncate max-w-[40px] print:max-w-[30px]">${subject.substring(0, 8)}</span>
+                                        </div>
+                                    `;
+            })}
+                            </div>
+                            <div class="flex justify-center gap-4 mt-2 text-[8px]">
+                                <span class="flex items-center gap-1"><span class="w-2 h-2 bg-green-400 rounded"></span> Term 1</span>
+                                <span class="flex items-center gap-1"><span class="w-2 h-2 bg-blue-400 rounded"></span> Term 2</span>
+                                <span class="flex items-center gap-1"><span class="w-2 h-2 bg-purple-400 rounded"></span> Term 3</span>
+                            </div>
+                        </div>
+                    ` : html`
+                        <!-- Termly: Bar graph showing subject averages -->
+                        <div class="bg-white p-3 rounded-xl border border-slate-100 print:border-black">
+                            <h3 class="font-black text-[10px] uppercase text-slate-500 mb-3">Subject Performance Overview</h3>
+                            <div class="flex flex-wrap gap-1 justify-center items-end h-28 print:h-20">
+                                ${subjects.map((subject, idx) => {
+                const avg = subjectAverages[idx] || 0;
+                const maxScore = 100;
+                const gradeInfo = avg > 0 ? Storage.getGradeInfo(avg) : null;
+                const barColor = gradeInfo?.level?.startsWith('EE') ? 'bg-green-500' :
+                    gradeInfo?.level?.startsWith('ME') ? 'bg-blue-500' :
+                        gradeInfo?.level?.startsWith('AE') ? 'bg-yellow-500' :
+                            gradeInfo?.level?.startsWith('BE') ? 'bg-red-500' : 'bg-slate-300';
+                return html`
+                                        <div class="flex flex-col items-center">
+                                            <div class="text-[8px] font-bold text-slate-600">${avg}%</div>
+                                            <div class="w-6 print:w-4 ${barColor} rounded-t" style="height: ${(avg / maxScore) * 80}px"></div>
+                                            <span class="text-[7px] text-slate-500 truncate max-w-[50px] print:max-w-[35px]">${subject.substring(0, 10)}</span>
+                                        </div>
+                                    `;
+            })}
+                            </div>
+                            <div class="flex justify-center gap-3 mt-2 text-[8px]">
+                                <span class="flex items-center gap-1"><span class="w-2 h-2 bg-green-500 rounded"></span> EE</span>
+                                <span class="flex items-center gap-1"><span class="w-2 h-2 bg-blue-500 rounded"></span> ME</span>
+                                <span class="flex items-center gap-1"><span class="w-2 h-2 bg-yellow-500 rounded"></span> AE</span>
+                                <span class="flex items-center gap-1"><span class="w-2 h-2 bg-red-500 rounded"></span> BE</span>
+                            </div>
+                        </div>
+                    `}
+                </div>
+
                 <div class="mt-4 space-y-4 print:mt-2 print:space-y-2">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 print:gap-2">
-                        <div class="space-y-1">
-                            <label class="text-[10px] font-bold text-slate-500 uppercase no-print">Class Teacher's Overall Comment</label>
-                            <div class="p-3 bg-slate-50 rounded-xl border border-slate-100 print:bg-white print:border-0 print:p-0">
-                                <textarea 
-                                    class="w-full bg-transparent border-0 focus:ring-0 text-xs italic outline-none no-print min-h-[40px]" 
-                                    placeholder="Enter teacher comments..."
-                                    value=${remark.teacher}
-                                    onInput=${(e) => handleRemarkChange('teacher', e.target.value)}
-                                ></textarea>
-                                <div class="hidden print:block text-[11px] border-b border-dotted border-black pb-0.5 mb-1">
-                                    <span class="font-bold uppercase text-[9px] block">Class Teacher's Remarks:</span>
-                                    ${remark.teacher || '____________________________________________________________________________________'}
-                                </div>
-                               
-                            </div>
-                        </div>
-
-                        <div class="space-y-1">
-                            <label class="text-[10px] font-bold text-slate-500 uppercase no-print">Principal's Overall Comment</label>
-                            <div class="p-3 bg-slate-50 rounded-xl border border-slate-100 print:bg-white print:border-0 print:p-0">
-                                <textarea 
-                                    class="w-full bg-transparent border-0 focus:ring-0 text-xs italic outline-none no-print min-h-[40px]" 
-                                    placeholder="Enter principal comments..."
-                                    value=${remark.principal}
-                                    onInput=${(e) => handleRemarkChange('principal', e.target.value)}
-                                ></textarea>
-                                <div class="hidden print:block text-[11px] border-b border-dotted border-black pb-0.5 mb-1">
-                                    <span class="font-bold uppercase text-[9px] block">Principal's Remarks:</span>
-                                    ${remark.principal || '____________________________________________________________________________________'}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Start of Page 2: Performance Tracker & Comments -->
-                    <div class="report-page-break mt-6 pt-4 print:mt-4 print:pt-2">
-                        <div class="flex flex-col gap-8">
-                            <!-- Linear Performance Graph -->
-                            <div class="bg-white p-4 rounded-2xl border border-slate-100 print:border-black print:rounded-none">
-                                <h3 class="font-black text-[10px] uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2 print:text-black">
-                                    <span class="w-1.5 h-1.5 rounded-full bg-blue-500 print:hidden"></span>
-                                    Subject Performance Trend (Linear Analysis)
-                                </h3>
-                                
-                                <div class="relative h-40 w-full mt-4 mb-8 px-8">
-                                    <!-- SVG Line Graph (compact for printing) -->
-                                    <svg viewBox="0 0 1000 320" class="w-full h-full overflow-visible">
-                                        <!-- Grid Lines -->
-                                        ${[0, 25, 50, 75, 100].map(val => {
-                                            const y = 320 - (val * 3.2);
-                                            return html`
-                                                <line x1="0" y1=${y} x2="1000" y2=${y} stroke="#f1f5f9" stroke-width="1" />
-                                                <text x="-40" y=${y + 4} class="text-[14px] fill-slate-400 font-bold print:fill-black">${val}%</text>
-                                            `;
-                                        })}
-                                        
-                                        <!-- X-Axis Labels & Points -->
-                                        ${subjects.map((subject, idx) => {
-                                            const x = subjects.length === 1 ? 500 : (idx / Math.max(1, subjects.length - 1)) * 1000;
-                                            const avg = subjectAverages[idx] || 0;
-                                            const y = 320 - (avg * 3.2);
-                                            return html`
-                                                <text 
-                                                    x=${x} 
-                                                    y="360" 
-                                                    text-anchor="middle" 
-                                                    class="text-[12px] font-black fill-slate-500 uppercase print:fill-black"
-                                                    transform=${`rotate(30, ${x}, 360)`}
-                                                >
-                                                    ${subject.length > 12 ? subject.substring(0, 10) + '...' : subject}
-                                                </text>
-                                                <circle cx=${x} cy=${y} r="6" class="fill-blue-600 print:fill-black" />
-                                                <text x=${x} y=${y - 12} text-anchor="middle" class="text-[12px] font-black fill-blue-800 print:fill-black">${avg}%</text>
-                                            `;
-                                        })}
-
-                                        <!-- The Trend Line -->
-                                        <path 
-                                            d=${subjects.map((_, idx) => {
-                                                const x = subjects.length === 1 ? 500 : (idx / Math.max(1, subjects.length - 1)) * 1000;
-                                                const avg = subjectAverages[idx] || 0;
-                                                const y = 320 - (avg * 3.2);
-                                                return `${idx === 0 ? 'M' : 'L'} ${x} ${y}`;
-                                            }).join(' ')}
-                                            fill="none" 
-                                            stroke="#2563eb" 
-                                            stroke-width="3" 
-                                            stroke-linecap="round" 
-                                            stroke-linejoin="round"
-                                            class="print:stroke-black"
-                                        />
-                                    </svg>
-                                    
-                                    <!-- Competency Zones Labels (subtle) -->
-                                    <div class="absolute left-0 top-0 h-full w-full pointer-events-none flex flex-col justify-between py-1 opacity-20 print:hidden">
-                                        <div class="border-t-2 border-green-500 w-full h-0"></div>
-                                        <div class="border-t-2 border-blue-500 w-full h-0"></div>
-                                        <div class="border-t-2 border-yellow-500 w-full h-0"></div>
-                                        <div class="border-t-2 border-red-500 w-full h-0"></div>
+                    <!-- Teacher/Principal Comments - Only show for termly, full year shows analysis -->
+                    ${!isFullYear && html`
+                        <div class="flex flex-col md:flex-row gap-4 print:flex-col print:gap-4">
+                            <div class="w-full md:w-[48%] break-inside-avoid print:w-full print:mb-2">
+                                <div class="p-3 bg-slate-50 rounded-lg border border-slate-100 print:border-black print:bg-white print:w-full">
+                                    <p class="text-[9px] font-bold text-slate-500 uppercase mb-1">Class Teacher's Remarks</p>
+                                    <textarea 
+                                        class="w-full h-24 bg-transparent border-0 focus:ring-0 text-xs italic outline-none no-print resize-none" 
+                                        placeholder="Enter teacher comments..."
+                                        value=${remark.teacher}
+                                        onInput=${(e) => handleRemarkChange('teacher', e.target.value)}
+                                    ></textarea>
+                                    <div class="hidden print:block">
+                                        <p class="text-xs italic border-b border-dotted border-black pb-2 mb-2" style="min-height: 60px; max-height: 60px; overflow: hidden;">
+                                            ${remark.teacher || '____________________________________________'}
+                                        </p>
                                     </div>
-                                </div>
-                            </div>
-
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 pt-8">
-                                <div class="space-y-4">
-                                    <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-1">Teacher's Remarks</h4>
-                                    <div class="p-4 bg-slate-50 rounded-xl min-h-[100px] border border-slate-100 print:bg-white print:border-black print:p-2">
-                                        <p class="text-sm italic text-slate-700">${remark.teacher || '____________________________________________________'}</p>
-                                    </div>
-                                    <div class="flex flex-col items-center pt-4">
-                                        <div class="h-12 w-32 flex items-center justify-center border-b border-black">
-                                            <img src="${settings.clerkSignature || settings.schoolLogo}" class="h-full object-contain ${settings.clerkSignature ? '' : 'opacity-10'}" />
+                                    <div class="flex items-center justify-between border-t border-dotted border-slate-300 print:border-black pt-1 mt-2">
+                                        <div class="h-10 w-24 flex items-center justify-center border-b border-slate-300 print:border-black">
+                                            <img src="${settings.clerkSignature || settings.schoolLogo}" class="h-full object-contain ${settings.clerkSignature ? '' : 'opacity-20'}" alt="Signature" />
                                         </div>
-                                        <p class="text-[9px] font-bold uppercase mt-1">Class Teacher Signature</p>
+                                        <span class="text-[8px] text-slate-400 uppercase">Class Teacher</span>
                                     </div>
                                 </div>
-                                <div class="space-y-4">
-                                    <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-1">Principal's Remarks</h4>
-                                    <div class="p-4 bg-slate-50 rounded-xl min-h-[100px] border border-slate-100 print:bg-white print:border-black print:p-2">
-                                        <p class="text-sm italic text-slate-700">${remark.principal || '____________________________________________________'}</p>
+                            </div>
+                            <div class="w-full md:w-[48%] break-inside-avoid print:w-full print:mb-2">
+                                <div class="p-3 bg-slate-50 rounded-lg border border-slate-100 print:border-black print:bg-white print:w-full">
+                                    <p class="text-[9px] font-bold text-slate-500 uppercase mb-1">Principal's Remarks</p>
+                                    <textarea 
+                                        class="w-full h-24 bg-transparent border-0 focus:ring-0 text-xs italic outline-none no-print resize-none" 
+                                        placeholder="Enter principal comments..."
+                                        value=${remark.principal}
+                                        onInput=${(e) => handleRemarkChange('principal', e.target.value)}
+                                    ></textarea>
+                                    <div class="hidden print:block">
+                                        <p class="text-xs italic border-b border-dotted border-black pb-2 mb-2" style="min-height: 60px; max-height: 60px; overflow: hidden;">
+                                            ${remark.principal || '____________________________________________'}
+                                        </p>
                                     </div>
-                                    <div class="flex flex-col items-center pt-4">
-                                        <div class="h-12 w-32 flex items-center justify-center border-b border-black">
-                                            <img src="${settings.principalSignature || settings.schoolLogo}" class="h-full object-contain ${settings.principalSignature ? '' : 'opacity-10'}" />
+                                    <div class="flex items-center justify-between border-t border-dotted border-slate-300 print:border-black pt-1 mt-2">
+                                        <div class="h-10 w-24 flex items-center justify-center border-b border-slate-300 print:border-black">
+                                            <img src="${settings.principalSignature || settings.schoolLogo}" class="h-full object-contain ${settings.principalSignature ? '' : 'opacity-20'}" alt="Signature" />
                                         </div>
-                                        <p class="text-[9px] font-bold uppercase mt-1">Principal Signature & Stamp</p>
+                                        <span class="text-[8px] text-slate-400 uppercase">Principal</span>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
-
-                    <div class="pt-6 border-t border-slate-100 print:border-black text-center print:pt-4">
-                        <p class="text-[10px] text-slate-400 font-medium italic">${isFullYear ? 'End of Year Comprehensive Report' : 'End of Term Progressive Report'} - ${settings.schoolName}</p>
-                    </div>
+                    `}
 
                     ${isFullYear && html`
                         <div class="mt-6 pt-4 border-t-2 border-slate-200 print:border-black">
@@ -978,13 +1022,12 @@ const StudentDetail = ({ student, data, setData, onBack, isBatch = false, initia
                                                 <td class="border p-2 text-center">${ys.avgScore}%</td>
                                                 <td class="border p-2 text-center">${ys.termPoints}</td>
                                                 <td class="border p-2 text-center">
-                                                    <span class=${`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                                        ys.termLevel === 'EE' ? 'bg-green-100 text-green-700' :
-                                                        ys.termLevel === 'ME' ? 'bg-blue-100 text-blue-700' :
-                                                        ys.termLevel === 'AE' ? 'bg-yellow-100 text-yellow-700' :
-                                                        ys.termLevel === 'BE' ? 'bg-red-100 text-red-700' :
-                                                        'bg-slate-100 text-slate-500'
-                                                    }`}>
+                                                    <span class=${`px-2 py-0.5 rounded-full text-[10px] font-bold ${ys.termLevel === 'EE' ? 'bg-green-100 text-green-700' :
+                    ys.termLevel === 'ME' ? 'bg-blue-100 text-blue-700' :
+                        ys.termLevel === 'AE' ? 'bg-yellow-100 text-yellow-700' :
+                            ys.termLevel === 'BE' ? 'bg-red-100 text-red-700' :
+                                'bg-slate-100 text-slate-500'
+                }`}>
                                                         ${ys.termLevel}
                                                     </span>
                                                 </td>
@@ -994,31 +1037,61 @@ const StudentDetail = ({ student, data, setData, onBack, isBatch = false, initia
                                         <tr class="bg-blue-50 font-bold">
                                             <td class="border p-2">YEAR AVERAGE</td>
                                             <td class="border p-2 text-center">
-                                                ${Math.round(yearSummary.reduce((a, b) => a + b.avgScore, 0) / 3)}%
-                                            </td>
-                                            <td class="border p-2 text-center">
-                                                ${Math.round(yearSummary.reduce((a, b) => a + b.termPoints, 0) / 3)}
+                                                ${(() => {
+                const allScores = [];
+                yearSummary.forEach(ys => {
+                    subjects.forEach(subject => {
+                        const pts = ys.subjectPoints?.[subject] || 0;
+                        if (pts > 0) allScores.push(pts);
+                    });
+                });
+                if (allScores.length === 0) return '-';
+                const avgPts = allScores.reduce((a, b) => a + b, 0) / allScores.length;
+                return Math.round(avgPts * 12.5) + '%';
+            })()}
                                             </td>
                                             <td class="border p-2 text-center">
                                                 ${(() => {
-                                                    const levelValues = { 'EE': 4, 'ME': 3, 'AE': 2, 'BE': 1 };
-                                                    const avgLevel = yearSummary.reduce((a, b) => a + (levelValues[b.termLevel] || 0), 0) / 3;
-                                                    if (avgLevel >= 3) return 'EE';
-                                                    if (avgLevel >= 2) return 'ME';
-                                                    if (avgLevel >= 1) return 'AE';
-                                                    return 'BE';
-                                                })()}
+                const allScores = [];
+                yearSummary.forEach(ys => {
+                    subjects.forEach(subject => {
+                        const pts = ys.subjectPoints?.[subject] || 0;
+                        if (pts > 0) allScores.push(pts);
+                    });
+                });
+                if (allScores.length === 0) return '-';
+                return (allScores.reduce((a, b) => a + b, 0) / allScores.length).toFixed(1);
+            })()}
                                             </td>
                                             <td class="border p-2 text-center">
-                                                ${yearSummary.filter(y => y.termAttendance !== null).length > 0 
-                                                    ? Math.round(yearSummary.reduce((a, b) => a + (b.termAttendance || 0), 0) / yearSummary.filter(y => y.termAttendance !== null).length) + '%'
-                                                    : '-'}
+                                                ${(() => {
+                const allScores = [];
+                yearSummary.forEach(ys => {
+                    subjects.forEach(subject => {
+                        const pts = ys.subjectPoints?.[subject] || 0;
+                        if (pts > 0) allScores.push(pts);
+                    });
+                });
+                if (allScores.length === 0) return '-';
+                const avgPts = allScores.reduce((a, b) => a + b, 0) / allScores.length;
+                return Storage.getOverallLevel(avgPts * subjects.length, subjects.length);
+            })()}
+                                            </td>
+                                            <td class="border p-2 text-center">
+                                                ${yearSummary.filter(y => y.termAttendance !== null).length > 0
+                ? Math.round(yearSummary.reduce((a, b) => a + (b.termAttendance || 0), 0) / yearSummary.filter(y => y.termAttendance !== null).length) + '%'
+                : '-'}
                                             </td>
                                         </tr>
                                     </tbody>
                                 </table>
                             </div>
+                        </div>
 
+                        <!-- Page 2: Full Year Analysis -->
+                        <div class="report-page-break mt-6 pt-4 print:mt-4 print:pt-2">
+                            <h3 class="text-lg font-black uppercase text-slate-800 mb-4">Annual Performance Analysis</h3>
+                            
                             <!-- Subject Comparison Across Terms -->
                             <div class="mb-6">
                                 <h4 class="text-sm font-bold text-slate-600 mb-2">Subject Performance Across Terms</h4>
@@ -1035,23 +1108,23 @@ const StudentDetail = ({ student, data, setData, onBack, isBatch = false, initia
                                     </thead>
                                     <tbody>
                                         ${subjects.map(subject => {
-                                            const termScores = ['T1', 'T2', 'T3'].map(term => {
-                                                const termAssessments = data.assessments.filter(a => 
-                                                    a.studentId === student.id && a.term === term && a.subject === subject
-                                                );
-                                                const scores = examTypes.map(type => {
-                                                    const match = termAssessments.find(a => a.examType === type);
-                                                    return match ? Number(match.score) : null;
-                                                }).filter(s => s !== null);
-                                                return scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null;
-                                            });
-                                            const yearAvg = termScores.filter(s => s !== null).length > 0
-                                                ? Math.round(termScores.reduce((a, b) => a + (b || 0), 0) / termScores.filter(s => s !== null).length)
-                                                : 0;
-                                            const trend = termScores[2] !== null && termScores[0] !== null 
-                                                ? (termScores[2] - termScores[0]) 
-                                                : null;
-                                            return html`
+                    const termScores = ['T1', 'T2', 'T3'].map(term => {
+                        const termAssessments = data.assessments.filter(a =>
+                            a.studentId === student.id && a.term === term && a.subject === subject
+                        );
+                        const scores = examTypes.map(type => {
+                            const match = termAssessments.find(a => a.examType === type);
+                            return match ? Number(match.score) : null;
+                        }).filter(s => s !== null);
+                        return scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null;
+                    });
+                    const yearAvg = termScores.filter(s => s !== null).length > 0
+                        ? Math.round(termScores.reduce((a, b) => a + (b || 0), 0) / termScores.filter(s => s !== null).length)
+                        : 0;
+                    const trend = termScores[2] !== null && termScores[0] !== null
+                        ? (termScores[2] - termScores[0])
+                        : null;
+                    return html`
                                                 <tr>
                                                     <td class="border p-2 font-medium">${subject}</td>
                                                     <td class="border p-2 text-center">${termScores[0] !== null ? termScores[0] + '%' : '-'}</td>
@@ -1067,7 +1140,7 @@ const StudentDetail = ({ student, data, setData, onBack, isBatch = false, initia
                                                     </td>
                                                 </tr>
                                             `;
-                                        })}
+                })}
                                     </tbody>
                                 </table>
                             </div>
@@ -1078,38 +1151,122 @@ const StudentDetail = ({ student, data, setData, onBack, isBatch = false, initia
                                     <h4 class="text-xs font-bold text-green-700 mb-2">Best Performing Term</h4>
                                     <p class="text-lg font-black text-green-800">
                                         ${(() => {
-                                            const best = yearSummary.reduce((a, b) => a.avgScore > b.avgScore ? a : b);
-                                            return best.avgScore > 0 ? best.term.replace('T', 'Term ') : 'N/A';
-                                        })()}
+                const best = yearSummary.reduce((a, b) => a.termPoints > b.termPoints ? a : b);
+                return best.termPoints > 0 ? best.term.replace('T', 'Term ') : 'N/A';
+            })()}
                                     </p>
                                     <p class="text-xs text-green-600">
                                         ${(() => {
-                                            const best = yearSummary.reduce((a, b) => a.avgScore > b.avgScore ? a : b);
-                                            return best.avgScore > 0 ? best.avgScore + '%' : '';
-                                        })()}
+                const best = yearSummary.reduce((a, b) => a.termPoints > b.termPoints ? a : b);
+                if (best.termPoints === 0) return '';
+                const avgPts = best.termPoints / subjects.length;
+                return Math.round(avgPts * 12.5) + '%';
+            })()}
                                     </p>
                                 </div>
                                 <div class="p-4 bg-blue-50 rounded-xl border border-blue-200">
                                     <h4 class="text-xs font-bold text-blue-700 mb-2">Year Average</h4>
                                     <p class="text-lg font-black text-blue-800">
-                                        ${Math.round(yearSummary.reduce((a, b) => a + b.avgScore, 0) / 3)}%
+                                        ${(() => {
+                const allScores = [];
+                yearSummary.forEach(ys => {
+                    subjects.forEach(subject => {
+                        const pts = ys.subjectPoints?.[subject] || 0;
+                        if (pts > 0) allScores.push(pts);
+                    });
+                });
+                if (allScores.length === 0) return '-%';
+                const avgPts = allScores.reduce((a, b) => a + b, 0) / allScores.length;
+                return Math.round(avgPts * 12.5) + '%';
+            })()}
                                     </p>
                                     <p class="text-xs text-blue-600">
-                                        ${Storage.getGradeInfo(Math.round(yearSummary.reduce((a, b) => a + b.avgScore, 0) / 3))?.label || ''}
+                                        ${(() => {
+                const allScores = [];
+                yearSummary.forEach(ys => {
+                    subjects.forEach(subject => {
+                        const pts = ys.subjectPoints?.[subject] || 0;
+                        if (pts > 0) allScores.push(pts);
+                    });
+                });
+                if (allScores.length === 0) return '';
+                const avgPts = allScores.reduce((a, b) => a + b, 0) / allScores.length;
+                const avgScore = Math.round(avgPts * 12.5);
+                return Storage.getGradeInfo(avgScore)?.label || '';
+            })()}
                                     </p>
                                 </div>
                                 <div class="p-4 bg-purple-50 rounded-xl border border-purple-200">
                                     <h4 class="text-xs font-bold text-purple-700 mb-2">Attendance Rate</h4>
                                     <p class="text-lg font-black text-purple-800">
-                                        ${yearSummary.filter(y => y.termAttendance !== null).length > 0 
-                                            ? Math.round(yearSummary.reduce((a, b) => a + (b.termAttendance || 0), 0) / yearSummary.filter(y => y.termAttendance !== null).length)
-                                            : 0}%
+                                        ${yearSummary.filter(y => y.termAttendance !== null).length > 0
+                ? Math.round(yearSummary.reduce((a, b) => a + (b.termAttendance || 0), 0) / yearSummary.filter(y => y.termAttendance !== null).length)
+                : 0}%
                                     </p>
                                     <p class="text-xs text-purple-600">Overall Year</p>
                                 </div>
                             </div>
                         </div>
+
+                        <!-- Teacher/Principal Comments for Full Year -->
+                        <div class="mt-6 pt-4 border-t-2 border-slate-200 print:border-black">
+                            <div class="flex flex-col md:flex-row gap-4 print:flex-col print:gap-4">
+                                <div class="w-full md:w-[48%] break-inside-avoid print:w-full print:mb-2">
+                                    <div class="p-3 bg-slate-50 rounded-lg border border-slate-100 print:border-black print:bg-white print:w-full">
+                                        <p class="text-[9px] font-bold text-slate-500 uppercase mb-1">Class Teacher's Annual Remarks</p>
+                                        <textarea 
+                                            class="w-full h-24 bg-transparent border-0 focus:ring-0 text-xs italic outline-none no-print resize-none" 
+                                            placeholder="Enter teacher comments..."
+                                            value=${remark.teacher}
+                                            onInput=${(e) => handleRemarkChange('teacher', e.target.value)}
+                                        ></textarea>
+                                        <div class="hidden print:block">
+                                            <p class="text-xs italic border-b border-dotted border-black pb-2 mb-2" style="min-height: 60px; max-height: 60px; overflow: hidden;">
+                                                ${remark.teacher || '____________________________________________'}
+                                            </p>
+                                        </div>
+                                        <div class="flex items-center justify-between border-t border-dotted border-slate-300 print:border-black pt-1 mt-2">
+                                            <div class="h-10 w-24 flex items-center justify-center border-b border-slate-300 print:border-black">
+                                                <img src="${settings.clerkSignature || settings.schoolLogo}" class="h-full object-contain ${settings.clerkSignature ? '' : 'opacity-20'}" alt="Signature" />
+                                            </div>
+                                            <span class="text-[8px] text-slate-400 uppercase">Class Teacher</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="w-full md:w-[48%] break-inside-avoid print:w-full print:mb-2">
+                                    <div class="p-3 bg-slate-50 rounded-lg border border-slate-100 print:border-black print:bg-white print:w-full">
+                                        <p class="text-[9px] font-bold text-slate-500 uppercase mb-1">Principal's Annual Remarks</p>
+                                        <textarea 
+                                            class="w-full h-24 bg-transparent border-0 focus:ring-0 text-xs italic outline-none no-print resize-none" 
+                                            placeholder="Enter principal comments..."
+                                            value=${remark.principal}
+                                            onInput=${(e) => handleRemarkChange('principal', e.target.value)}
+                                        ></textarea>
+                                        <div class="hidden print:block">
+                                            <p class="text-xs italic border-b border-dotted border-black pb-2 mb-2" style="min-height: 60px; max-height: 60px; overflow: hidden;">
+                                                ${remark.principal || '____________________________________________'}
+                                            </p>
+                                        </div>
+                                        <div class="flex items-center justify-between border-t border-dotted border-slate-300 print:border-black pt-1 mt-2">
+                                            <div class="h-10 w-24 flex items-center justify-center border-b border-slate-300 print:border-black">
+                                                <img src="${settings.principalSignature || settings.schoolLogo}" class="h-full object-contain ${settings.principalSignature ? '' : 'opacity-20'}" alt="Signature" />
+                                            </div>
+                                            <span class="text-[8px] text-slate-400 uppercase">Principal</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     `}
+
+                    <!-- Report Footer -->
+                    <div class="mt-6 pt-3 border-t border-slate-200 print:border-black">
+                        <div class="flex justify-between items-center text-[8px] text-slate-400">
+                            <span>${settings.schoolName} - ${settings.schoolAddress}</span>
+                            <span>Academic Year: ${settings.academicYear}</span>
+                            <span>${isFullYear ? 'Annual Report' : selectedTerm.replace('T', 'Term ')}</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

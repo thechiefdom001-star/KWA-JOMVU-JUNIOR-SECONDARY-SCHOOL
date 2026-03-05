@@ -7,10 +7,12 @@ const html = htm.bind(h);
 
 export const Assessments = ({ data, setData }) => {
     const [selectedGrade, setSelectedGrade] = useState('GRADE 1');
+    const [selectedStream, setSelectedStream] = useState('ALL');
     const [selectedSubject, setSelectedSubject] = useState('');
     const [selectedTerm, setSelectedTerm] = useState('T1');
     const [selectedExamType, setSelectedExamType] = useState('Opener');
 
+    const streams = data?.settings?.streams || [];
     const subjects = Storage.getSubjectsForGrade(selectedGrade);
 
     useEffect(() => {
@@ -22,6 +24,9 @@ export const Assessments = ({ data, setData }) => {
     const students = (data?.students || []).filter(s => {
         const inGrade = s.grade === selectedGrade;
         if (!inGrade) return false;
+        
+        const inStream = selectedStream === 'ALL' || s.stream === selectedStream;
+        if (!inStream) return false;
         
         // For Senior School, filter students by their chosen electives
         const seniorGrades = ['GRADE 10', 'GRADE 11', 'GRADE 12'];
@@ -93,9 +98,20 @@ export const Assessments = ({ data, setData }) => {
                     <select 
                         class="p-3 bg-white border border-slate-200 rounded-xl outline-none min-w-[120px]"
                         value=${selectedGrade}
-                        onChange=${(e) => setSelectedGrade(e.target.value)}
+                        onChange=${(e) => { setSelectedGrade(e.target.value); setSelectedStream('ALL'); }}
                     >
                         ${data.settings.grades.map(g => html`<option value=${g}>${g}</option>`)}
+                    </select>
+                </div>
+                <div class="flex flex-col gap-1">
+                    <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Stream</label>
+                    <select 
+                        class="p-3 bg-white border border-slate-200 rounded-xl outline-none min-w-[100px]"
+                        value=${selectedStream}
+                        onChange=${(e) => setSelectedStream(e.target.value)}
+                    >
+                        <option value="ALL">All</option>
+                        ${streams.map(s => html`<option value=${s}>${s}</option>`)}
                     </select>
                 </div>
                 <div class="flex flex-col gap-1">

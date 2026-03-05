@@ -2,6 +2,7 @@ import { h } from 'preact';
 import { useState, useEffect } from 'preact/hooks';
 import htm from 'htm';
 import { Storage } from '../lib/storage.js';
+import { paymentService } from '../lib/paymentService.js';
 
 const html = htm.bind(h);
 
@@ -9,8 +10,17 @@ export const Fees = ({ data, setData }) => {
     const [selectedStudentId, setSelectedStudentId] = useState('');
     const [selectedTerm, setSelectedTerm] = useState('T1');
     const [filterGrade, setFilterGrade] = useState('ALL');
+    const [filterStream, setFilterStream] = useState('ALL');
     const [paymentItems, setPaymentItems] = useState({});
     const [receipt, setReceipt] = useState(null);
+    const [showPromptModal, setShowPromptModal] = useState(false);
+    const [promptStudent, setPromptStudent] = useState(null);
+    const [promptAmount, setPromptAmount] = useState(0);
+    const [promptPhone, setPromptPhone] = useState('');
+    const [promptMethod, setPromptMethod] = useState('mpesa');
+    const [promptStatus, setPromptStatus] = useState('');
+    
+    const streams = data?.settings?.streams || [];
 
     const defaultFeeColumns = [
         { key: 'previousArrears', label: 'Arrears B/F' },
@@ -94,10 +104,74 @@ export const Fees = ({ data, setData }) => {
         setPaymentItems({});
     };
 
-    const handleDeletePayment = (paymentId) => {
-        if (confirm('Void this transaction? This cannot be undone.')) {
-            setData({ ...data, payments: data.payments.filter(p => p.id !== paymentId) });
-            if (receipt && receipt.id === paymentId) setReceipt(null);
+    const openPromptModal = (student) => {
+        const financials = Storage.getStudentFinancials(student, data.payments, data.settings);
+        setPromptStudent(student);
+        setPromptAmount(financials.balance);
+        setPromptPhone(student.parentContact || '');
+        setPromptMethod('mpesa');
+        setPromptStatus('');
+        setShowPromptModal(true);
+    };
+
+    const sendPaymentPrompt = async () => {
+        if (!promptPhone) {
+            alert('Please enter parent phone number');
+            return;
+        }
+        
+        const phone = promptPhone.replace(/[^0-9]/g, '');
+        if (phone.length < 10) {
+            alert('Please enter a valid phone number');
+            return;
+        }
+
+        setPromptStatus('sending');
+
+        // Initialize payment service with current settings
+        paymentService.setSettings(data.settings);
+
+        try {
+            const result = await paymentService.sendPaymentPrompt(
+                phone,
+                promptAmount,
+                promptStudent.name,
+                promptMethod,
+                promptStudent.admissionNo
+            );
+
+            const promptData = {
+                id: 'PROMPT-' + Date.now(),
+                studentId: promptStudent.id,
+                studentName: promptStudent.name,
+                admissionNo: promptStudent.admissionNo,
+                phone: phone,
+                amount: promptAmount,
+                method: promptMethod,
+                academicYear: data.settings.academicYear,
+                date: new Date().toLocaleDateString(),
+                status: result.success ? 'sent' : 'failed',
+                transactionId: result.checkoutRequestId || result.transactionId || null,
+                responseMessage: result.message || result.error
+            };
+
+            const existingPrompts = data.paymentPrompts || [];
+            setData({ ...data, paymentPrompts: [...existingPrompts, promptData] });
+
+            if (result.success) {
+                setPromptStatus('sent');
+                setTimeout(() => {
+                    setShowPromptModal(false);
+                    setPromptStatus('');
+                }, 2000);
+            } else {
+                setPromptStatus('error');
+                alert(result.error || 'Payment request failed');
+            }
+        } catch (error) {
+            console.error('Payment Error:', error);
+            setPromptStatus('error');
+            alert('Failed to send payment request: ' + error.message);
         }
     };
 
@@ -128,25 +202,139 @@ export const Fees = ({ data, setData }) => {
 
     return html`
         <div class="space-y-6">
+            <!-- Payment Prompt Modal -->
+            ${showPromptModal && html`
+                <div class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div class="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl animate-in zoom-in-95 duration-200">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-xl font-black">📱 Send Payment Prompt</h3>
+                            <button onClick=${() => setShowPromptModal(false)} class="text-slate-400 hover:text-slate-600 text-2xl">&times;</button>
+                        </div>
+                        
+                        <div class="space-y-4">
+                            <div class="bg-blue-50 p-4 rounded-xl">
+                                <p class="text-sm font-bold text-blue-800">${promptStudent?.name}</p>
+                                <p class="text-xs text-blue-600">${promptStudent?.grade} - Balance: ${data.settings.currency} ${promptAmount?.toLocaleString()}</p>
+                            </div>
+
+                            <div class="space-y-2">
+                                <label class="text-xs font-bold text-slate-500 uppercase">Payment Method</label>
+                                <div class="flex gap-2">
+                                    <button 
+                                        type="button"
+                                        onClick=${() => setPromptMethod('mpesa')}
+                                        class=${`flex-1 py-3 rounded-xl font-bold text-sm border-2 ${promptMethod === 'mpesa' ? 'border-green-500 bg-green-50 text-green-700' : 'border-slate-200 text-slate-500'}`}
+                                    >
+                                        M-Pesa
+                                    </button>
+                                    <button 
+                                        type="button"
+                                        onClick=${() => setPromptMethod('airtel')}
+                                        class=${`flex-1 py-3 rounded-xl font-bold text-sm border-2 ${promptMethod === 'airtel' ? 'border-red-500 bg-red-50 text-red-700' : 'border-slate-200 text-slate-500'}`}
+                                    >
+                                        Airtel
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="space-y-2">
+                                <label class="text-xs font-bold text-slate-500 uppercase">Parent Phone Number</label>
+                                <input 
+                                    type="tel"
+                                    placeholder="e.g. 254712345678"
+                                    class="w-full p-3 bg-slate-50 rounded-xl outline-none border border-slate-200 focus:border-green-500"
+                                    value=${promptPhone}
+                                    onInput=${(e) => setPromptPhone(e.target.value)}
+                                />
+                                <p class="text-[10px] text-slate-400">STK push will be sent to this number</p>
+                            </div>
+
+                            <div class="space-y-2">
+                                <label class="text-xs font-bold text-slate-500 uppercase">Amount to Pay</label>
+                                <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                                    <span class="text-xl font-black text-green-600">${data.settings.currency} ${promptAmount?.toLocaleString()}</span>
+                                </div>
+                            </div>
+
+                            ${promptStatus === 'sending' && html`
+                                <div class="bg-yellow-50 p-4 rounded-xl text-center">
+                                    <p class="text-yellow-700 font-bold">${promptMethod === 'mpesa' ? '📡 Sending M-Pesa STK Push...' : '📡 Sending Airtel Request...'}</p>
+                                </div>
+                            `}
+
+                            ${promptStatus === 'sent' && html`
+                                <div class="bg-green-50 p-4 rounded-xl text-center">
+                                    <p class="text-green-700 font-bold">✅ ${promptMethod === 'mpesa' ? 'M-Pesa' : 'Airtel'} request sent!</p>
+                                    <p class="text-xs text-green-600">Parent will receive a payment prompt on their phone</p>
+                                </div>
+                            `}
+
+                            ${promptStatus === 'error' && html`
+                                <div class="bg-red-50 p-4 rounded-xl text-center">
+                                    <p class="text-red-700 font-bold">❌ Payment request failed</p>
+                                    <p class="text-xs text-red-600">Please check API settings in Configuration</p>
+                                </div>
+                            `}
+
+                            <button 
+                                type="button"
+                                onClick=${sendPaymentPrompt}
+                                disabled=${promptStatus === 'sending'}
+                                class=${`w-full py-4 rounded-xl font-bold text-white shadow-lg ${promptStatus === 'sending' ? 'bg-slate-400' : promptMethod === 'mpesa' ? 'bg-green-600 shadow-green-200' : 'bg-red-600 shadow-red-200'}`}
+                            >
+                                ${promptStatus === 'sending' ? 'Sending...' : `Send ${promptMethod === 'mpesa' ? 'M-Pesa' : 'Airtel'} Prompt`}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `}
+
             <h2 class="text-2xl font-bold no-print">Fee Management</h2>
+
+            <div class="flex justify-end no-print">
+                <button 
+                    onClick=${() => {
+                        const student = data.students.find(s => s.id === selectedStudentId);
+                        if (student) {
+                            openPromptModal(student);
+                        } else {
+                            alert('Please select a student first');
+                        }
+                    }}
+                    class="bg-green-600 text-white px-4 py-2 rounded-xl font-bold text-sm shadow-lg shadow-green-200 flex items-center gap-2"
+                >
+                    📱 Send Payment Prompt
+                </button>
+            </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 no-print">
                     <h3 class="font-bold mb-4">Record New Payment</h3>
                     <form onSubmit=${handlePayment} class="space-y-6">
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                             <div class="space-y-1">
                                 <label class="text-xs font-bold text-slate-500 uppercase">Filter Grade</label>
                                 <select 
                                     class="w-full p-3 bg-slate-50 rounded-xl outline-none border border-transparent focus:border-primary font-bold text-primary"
                                     value=${filterGrade}
-                                    onChange=${(e) => { setFilterGrade(e.target.value); setSelectedStudentId(''); }}
+                                    onChange=${(e) => { setFilterGrade(e.target.value); setFilterStream('ALL'); setSelectedStudentId(''); }}
                                 >
                                     <option value="ALL">All Grades</option>
                                     ${(data.settings.grades || []).map(g => html`<option value=${g}>${g}</option>`)}
                                 </select>
                             </div>
-                            <div class="space-y-1 md:col-span-1">
+                            <div class="space-y-1">
+                                <label class="text-xs font-bold text-slate-500 uppercase">Stream</label>
+                                <select 
+                                    class="w-full p-3 bg-slate-50 rounded-xl outline-none border border-transparent focus:border-primary font-bold text-primary"
+                                    value=${filterStream}
+                                    onChange=${(e) => { setFilterStream(e.target.value); setSelectedStudentId(''); }}
+                                >
+                                    <option value="ALL">All Streams</option>
+                                    ${streams.map(s => html`<option value=${s}>${s}</option>`)}
+                                </select>
+                            </div>
+                            <div class="space-y-1">
                                 <label class="text-xs font-bold text-slate-500 uppercase">Select Student</label>
                                 <select 
                                     required
@@ -156,9 +344,13 @@ export const Fees = ({ data, setData }) => {
                                 >
                                     <option value="">Select Student</option>
                                     ${(data.students || [])
-                                        .filter(s => filterGrade === 'ALL' || s.grade === filterGrade)
+                                        .filter(s => {
+                                            if (filterGrade !== 'ALL' && s.grade !== filterGrade) return false;
+                                            if (filterStream !== 'ALL' && s.stream !== filterStream) return false;
+                                            return true;
+                                        })
                                         .map(s => html`
-                                            <option value=${s.id}>${s.name} (Adm: ${s.admissionNo})</option>
+                                            <option value=${s.id}>${s.name} (${s.grade}${s.stream || ''})</option>
                                         `)}
                                 </select>
                             </div>
@@ -364,6 +556,42 @@ export const Fees = ({ data, setData }) => {
                                     </div>
                                 </div>
                             </div>
+
+                            <!-- Bank & Mobile Money Details -->
+                            ${(data.settings.bankName || data.settings.mpesaPaybill || data.settings.airtelPaybill) && html`
+                                <div class="mt-6 p-4 bg-slate-800/50 print:bg-slate-50 rounded-xl border border-slate-700 print:border-slate-200">
+                                    <p class="text-[9px] font-black uppercase text-slate-500 print:text-slate-600 mb-2">Payment Options</p>
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[9px]">
+                                        ${data.settings.bankName && html`
+                                            <div class="flex items-start gap-2">
+                                                <span class="text-green-400">🏦</span>
+                                                <div>
+                                                    <p class="font-bold text-slate-300 print:text-slate-700">${data.settings.bankName}</p>
+                                                    <p class="text-slate-500 print:text-slate-500">A/C No: ${data.settings.bankAccount || 'N/A'}</p>
+                                                </div>
+                                            </div>
+                                        `}
+                                        ${data.settings.mpesaPaybill && html`
+                                            <div class="flex items-start gap-2">
+                                                <span class="text-green-400">📱</span>
+                                                <div>
+                                                    <p class="font-bold text-slate-300 print:text-slate-700">M-Pesa Paybill: ${data.settings.mpesaPaybill}</p>
+                                                    <p class="text-slate-500 print:text-slate-500">A/C: ${data.settings.mpesaAccountName || 'School Fees'}</p>
+                                                </div>
+                                            </div>
+                                        `}
+                                        ${data.settings.airtelPaybill && html`
+                                            <div class="flex items-start gap-2">
+                                                <span class="text-red-400">📱</span>
+                                                <div>
+                                                    <p class="font-bold text-slate-300 print:text-slate-700">Airtel Paybill: ${data.settings.airtelPaybill}</p>
+                                                    <p class="text-slate-500 print:text-slate-500">A/C: ${data.settings.airtelAccountName || 'School Fees'}</p>
+                                                </div>
+                                            </div>
+                                        `}
+                                    </div>
+                                </div>
+                            `}
 
                             <div class="pt-8 text-center hidden print:block">
                                 <div class="flex justify-around mb-8 items-end h-16">

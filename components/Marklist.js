@@ -9,25 +9,50 @@ function safeArray(arr) {
     return Array.isArray(arr) ? arr : [];
 }
 
+function getGradeStreamOptions(grades, streams) {
+    if (!streams || streams.length === 0) {
+        return grades.map(g => ({ value: g, label: g }));
+    }
+    return grades.flatMap(grade => {
+        return streams.map(stream => ({
+            value: `${grade} ${stream}`,
+            label: `${grade} ${stream}`
+        }));
+    });
+}
+
 export const Marklist = ({ data = {}, setData = () => {} }) => {
-    const settings = safeArray(data.settings) ? data.settings : {};
+    const settings = data?.settings || {};
     const grades = safeArray(settings.grades);
-    const studentsList = safeArray(data.students);
-    const assessmentsList = safeArray(data.assessments);
-    const remarksList = safeArray(data.remarks);
+    const streams = safeArray(settings.streams);
+    const studentsList = safeArray(data?.students);
+    const assessmentsList = safeArray(data?.assessments);
+    const remarksList = safeArray(data?.remarks);
     
-    const defaultGrade = grades.length > 0 ? grades[0] : 'GRADE 1';
-    const [selectedGrade, setSelectedGrade] = useState(defaultGrade);
+    const gradeStreamOptions = getGradeStreamOptions(grades, streams);
+    const defaultGradeStream = gradeStreamOptions.length > 0 ? gradeStreamOptions[0].value : 'GRADE 1';
+    const [selectedGradeStream, setSelectedGradeStream] = useState(defaultGradeStream);
     const [selectedTerm, setSelectedTerm] = useState('T1');
     const [selectedExamType, setSelectedExamType] = useState('End-Term');
+
+    const [selectedGrade, selectedStream] = useMemo(() => {
+        const parts = selectedGradeStream.split(' ');
+        const grade = parts[0] + (parts[1] && !streams.includes(parts[1]) ? ' ' + parts[1] : '');
+        const stream = parts[1] && streams.includes(parts[1]) ? parts[1] : '';
+        return [grade, stream];
+    }, [selectedGradeStream, streams]);
 
     const subjects = useMemo(() => {
         return safeArray(Storage.getSubjectsForGrade(selectedGrade || 'GRADE 1'));
     }, [selectedGrade]);
     
     const students = useMemo(() => {
-        return studentsList.filter(s => s.grade === selectedGrade);
-    }, [studentsList, selectedGrade]);
+        return studentsList.filter(s => {
+            const matchesGrade = s.grade === selectedGrade;
+            const matchesStream = !selectedStream || s.stream === selectedStream;
+            return matchesGrade && matchesStream;
+        });
+    }, [studentsList, selectedGrade, selectedStream]);
 
     const handleTeacherRemarkChange = (studentId, value) => {
         const existing = remarksList.find(r => r.studentId === studentId) || { teacher: '', principal: '' };
@@ -36,7 +61,6 @@ export const Marklist = ({ data = {}, setData = () => {} }) => {
         setData({ ...data, remarks: [...otherRemarks, updated] });
     };
 
-    const gradeOptions = grades.length > 0 ? grades : ['GRADE 1'];
     const examTypes = ['Opener', 'Mid-Term', 'End-Term'];
     const academicYear = settings.academicYear || '2025/2026';
 
@@ -47,10 +71,10 @@ export const Marklist = ({ data = {}, setData = () => {} }) => {
                 <div class="flex flex-wrap gap-2 w-full md:w-auto">
                     <select 
                         class="flex-1 md:flex-none p-2 bg-white border border-slate-200 rounded-lg text-xs font-bold"
-                        value=${selectedGrade}
-                        onChange=${(e) => setSelectedGrade(e.target.value)}
+                        value=${selectedGradeStream}
+                        onChange=${(e) => setSelectedGradeStream(e.target.value)}
                     >
-                        ${gradeOptions.map(g => html`<option key=${g} value=${g}>${g}</option>`)}
+                        ${gradeStreamOptions.map(gs => html`<option key=${gs.value} value=${gs.value}>${gs.label}</option>`)}
                     </select>
                     <select 
                         class="flex-1 md:flex-none p-2 bg-white border border-slate-200 rounded-lg text-xs font-bold"
@@ -75,7 +99,7 @@ export const Marklist = ({ data = {}, setData = () => {} }) => {
             <div class="Print-only mb-6 flex flex-col items-center text-center">
                 <img src="${settings.schoolLogo || ''}" class="w-16 h-16 mb-2 object-contain" alt="Logo" />
                 <h1 class="text-2xl font-black uppercase">${settings.schoolName || 'School'}</h1>
-                <h2 class="text-sm font-bold uppercase text-slate-500 mt-1">Official Class Marklist - ${selectedGrade}</h2>
+                <h2 class="text-sm font-bold uppercase text-slate-500 mt-1">Official Class Marklist - ${selectedGradeStream}</h2>
                 <p class="text-[10px] font-bold text-slate-400 uppercase mt-1">${selectedTerm} | ${selectedExamType} EXAM • Academic Year: ${academicYear}</p>
             </div>
 

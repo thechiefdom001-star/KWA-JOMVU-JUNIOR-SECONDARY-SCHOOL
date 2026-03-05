@@ -990,6 +990,205 @@ export const Settings = ({ data, setData }) => {
                         </button>
                     </div>
                 </div>
+
+                <!-- Bank & Mobile Money Details -->
+                <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                    <div class="bg-gradient-to-r from-green-600 to-emerald-600 px-6 py-4">
+                        <h3 class="text-white font-black text-lg">💳 Bank & Mobile Money Details</h3>
+                        <p class="text-green-100 text-xs font-medium">Payment information for receipts and fee reminders</p>
+                    </div>
+                    <div class="p-6 space-y-4">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="space-y-1">
+                                <label class="text-xs font-bold text-slate-500 uppercase">Bank Name</label>
+                                <input 
+                                    class="w-full p-3 bg-slate-50 rounded-xl outline-none border border-slate-100 focus:border-blue-400"
+                                    value=${settings.bankName || ''}
+                                    onInput=${(e) => setData({...data, settings: {...settings, bankName: e.target.value}})}
+                                    placeholder="e.g. Kenya Commercial Bank"
+                                />
+                            </div>
+                            <div class="space-y-1">
+                                <label class="text-xs font-bold text-slate-500 uppercase">Account Number</label>
+                                <input 
+                                    class="w-full p-3 bg-slate-50 rounded-xl outline-none border border-slate-100 focus:border-blue-400"
+                                    value=${settings.bankAccount || ''}
+                                    onInput=${(e) => setData({...data, settings: {...settings, bankAccount: e.target.value}})}
+                                    placeholder="e.g. 1234567890"
+                                />
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="space-y-1">
+                                <label class="text-xs font-bold text-slate-500 uppercase">M-Pesa Paybill No.</label>
+                                <input 
+                                    class="w-full p-3 bg-slate-50 rounded-xl outline-none border border-slate-100 focus:border-blue-400"
+                                    value=${settings.mpesaPaybill || ''}
+                                    onInput=${(e) => setData({...data, settings: {...settings, mpesaPaybill: e.target.value}})}
+                                    placeholder="e.g. 123456"
+                                />
+                            </div>
+                            <div class="space-y-1">
+                                <label class="text-xs font-bold text-slate-500 uppercase">Airtel Money Paybill No.</label>
+                                <input 
+                                    class="w-full p-3 bg-slate-50 rounded-xl outline-none border border-slate-100 focus:border-blue-400"
+                                    value=${settings.airtelPaybill || ''}
+                                    onInput=${(e) => setData({...data, settings: {...settings, airtelPaybill: e.target.value}})}
+                                    placeholder="e.g. 789012"
+                                />
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="space-y-1">
+                                <label class="text-xs font-bold text-slate-500 uppercase">M-Pesa Account Name</label>
+                                <input 
+                                    class="w-full p-3 bg-slate-50 rounded-xl outline-none border border-slate-100 focus:border-blue-400"
+                                    value=${settings.mpesaAccountName || ''}
+                                    onInput=${(e) => setData({...data, settings: {...settings, mpesaAccountName: e.target.value}})}
+                                    placeholder="e.g. School Fees Account"
+                                />
+                            </div>
+                            <div class="space-y-1">
+                                <label class="text-xs font-bold text-slate-500 uppercase">Airtel Account Name</label>
+                                <input 
+                                    class="w-full p-3 bg-slate-50 rounded-xl outline-none border border-slate-100 focus:border-blue-400"
+                                    value=${settings.airtelAccountName || ''}
+                                    onInput=${(e) => setData({...data, settings: {...settings, airtelAccountName: e.target.value}})}
+                                    placeholder="e.g. School Fees Account"
+                                />
+                            </div>
+                        </div>
+                        <button 
+                            onClick=${handleUpdateProfile}
+                            class=${`w-full py-3 rounded-xl font-bold transition-all shadow-lg ${updating ? 'bg-green-500 text-white shadow-green-100' : 'bg-green-600 text-white shadow-green-100'}`}
+                        >
+                            ${updating ? '✓ Saved' : 'Save Payment Details'}
+                        </button>
+                    </div>
+                </div>
+
+                <!-- M-Pesa API Configuration -->
+                <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                    <div class="bg-gradient-to-r from-green-600 to-green-800 px-6 py-4">
+                        <h3 class="text-white font-black text-lg">🔐 M-Pesa API Configuration</h3>
+                        <p class="text-green-100 text-xs font-medium">Safaricom Daraja API credentials for STK Push</p>
+                    </div>
+                    <div class="p-6 space-y-4">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="space-y-1">
+                                <label class="text-xs font-bold text-slate-500 uppercase">Consumer Key</label>
+                                <input 
+                                    class="w-full p-3 bg-slate-50 rounded-xl outline-none border border-slate-100 focus:border-green-400"
+                                    value=${settings.mpesaConsumerKey || ''}
+                                    onInput=${(e) => setData({...data, settings: {...settings, mpesaConsumerKey: e.target.value}})}
+                                    placeholder="Enter M-Pesa Consumer Key"
+                                />
+                            </div>
+                            <div class="space-y-1">
+                                <label class="text-xs font-bold text-slate-500 uppercase">Consumer Secret</label>
+                                <input 
+                                    type="password"
+                                    class="w-full p-3 bg-slate-50 rounded-xl outline-none border border-slate-100 focus:border-green-400"
+                                    value=${settings.mpesaConsumerSecret || ''}
+                                    onInput=${(e) => setData({...data, settings: {...settings, mpesaConsumerSecret: e.target.value}})}
+                                    placeholder="Enter M-Pesa Consumer Secret"
+                                />
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div class="space-y-1">
+                                <label class="text-xs font-bold text-slate-500 uppercase">Shortcode</label>
+                                <input 
+                                    class="w-full p-3 bg-slate-50 rounded-xl outline-none border border-slate-100 focus:border-green-400"
+                                    value=${settings.mpesaShortcode || ''}
+                                    onInput=${(e) => setData({...data, settings: {...settings, mpesaShortcode: e.target.value}})}
+                                    placeholder="e.g. 123456"
+                                />
+                            </div>
+                            <div class="space-y-1">
+                                <label class="text-xs font-bold text-slate-500 uppercase">Paybill No.</label>
+                                <input 
+                                    class="w-full p-3 bg-slate-50 rounded-xl outline-none border border-slate-100 focus:border-green-400"
+                                    value=${settings.mpesaPaybill || ''}
+                                    onInput=${(e) => setData({...data, settings: {...settings, mpesaPaybill: e.target.value}})}
+                                    placeholder="e.g. 123456"
+                                />
+                            </div>
+                            <div class="space-y-1">
+                                <label class="text-xs font-bold text-slate-500 uppercase">Callback URL</label>
+                                <input 
+                                    class="w-full p-3 bg-slate-50 rounded-xl outline-none border border-slate-100 focus:border-green-400"
+                                    value=${settings.mpesaCallbackUrl || ''}
+                                    onInput=${(e) => setData({...data, settings: {...settings, mpesaCallbackUrl: e.target.value}})}
+                                    placeholder="https://your-domain.com/callback"
+                                />
+                            </div>
+                        </div>
+                        <button 
+                            onClick=${handleUpdateProfile}
+                            class=${`w-full py-3 rounded-xl font-bold transition-all shadow-lg ${updating ? 'bg-green-500 text-white' : 'bg-green-600 text-white'}`}
+                        >
+                            ${updating ? '✓ Saved' : 'Save M-Pesa API Settings'}
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Airtel Money API Configuration -->
+                <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                    <div class="bg-gradient-to-r from-red-600 to-red-800 px-6 py-4">
+                        <h3 class="text-white font-black text-lg">🔐 Airtel Money API Configuration</h3>
+                        <p class="text-red-100 text-xs font-medium">Airtel API credentials for payment prompts</p>
+                    </div>
+                    <div class="p-6 space-y-4">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="space-y-1">
+                                <label class="text-xs font-bold text-slate-500 uppercase">API Key</label>
+                                <input 
+                                    class="w-full p-3 bg-slate-50 rounded-xl outline-none border border-slate-100 focus:border-red-400"
+                                    value=${settings.airtelApiKey || ''}
+                                    onInput=${(e) => setData({...data, settings: {...settings, airtelApiKey: e.target.value}})}
+                                    placeholder="Enter Airtel API Key"
+                                />
+                            </div>
+                            <div class="space-y-1">
+                                <label class="text-xs font-bold text-slate-500 uppercase">API Secret</label>
+                                <input 
+                                    type="password"
+                                    class="w-full p-3 bg-slate-50 rounded-xl outline-none border border-slate-100 focus:border-red-400"
+                                    value=${settings.airtelApiSecret || ''}
+                                    onInput=${(e) => setData({...data, settings: {...settings, airtelApiSecret: e.target.value}})}
+                                    placeholder="Enter Airtel API Secret"
+                                />
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="space-y-1">
+                                <label class="text-xs font-bold text-slate-500 uppercase">Merchant ID</label>
+                                <input 
+                                    class="w-full p-3 bg-slate-50 rounded-xl outline-none border border-slate-100 focus:border-red-400"
+                                    value=${settings.airtelMerchantId || ''}
+                                    onInput=${(e) => setData({...data, settings: {...settings, airtelMerchantId: e.target.value}})}
+                                    placeholder="Enter Merchant ID"
+                                />
+                            </div>
+                            <div class="space-y-1">
+                                <label class="text-xs font-bold text-slate-500 uppercase">Callback URL</label>
+                                <input 
+                                    class="w-full p-3 bg-slate-50 rounded-xl outline-none border border-slate-100 focus:border-red-400"
+                                    value=${settings.airtelCallbackUrl || ''}
+                                    onInput=${(e) => setData({...data, settings: {...settings, airtelCallbackUrl: e.target.value}})}
+                                    placeholder="https://your-domain.com/airtel-callback"
+                                />
+                            </div>
+                        </div>
+                        <button 
+                            onClick=${handleUpdateProfile}
+                            class=${`w-full py-3 rounded-xl font-bold transition-all shadow-lg ${updating ? 'bg-red-500 text-white' : 'bg-red-600 text-white'}`}
+                        >
+                            ${updating ? '✓ Saved' : 'Save Airtel API Settings'}
+                        </button>
+                    </div>
+                </div>
             </div>
 
             <div class="p-6 bg-red-50 rounded-2xl border border-red-100">

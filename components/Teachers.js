@@ -4,7 +4,16 @@ import htm from 'htm';
 
 const html = htm.bind(h);
 
-export const Teachers = ({ data, setData }) => {
+function safeArray(arr) {
+    return Array.isArray(arr) ? arr : [];
+}
+
+export const Teachers = ({ data = {}, setData = () => {} }) => {
+    const settings = (data && data.settings) || {};
+    const grades = safeArray(settings.grades);
+    const streams = safeArray(settings.streams);
+    const teachersList = safeArray(data.teachers);
+    
     const [showAdd, setShowAdd] = useState(false);
     const [editingId, setEditingId] = useState(null);
     const [newTeacher, setNewTeacher] = useState({ 
@@ -20,15 +29,25 @@ export const Teachers = ({ data, setData }) => {
         classTeacherGrade: ''
     });
 
+    const gradeStreamOptions = grades.flatMap(grade => {
+        if (streams.length > 0) {
+            return streams.map(stream => ({
+                value: `${grade} ${stream}`,
+                label: `${grade} ${stream}`
+            }));
+        }
+        return [{ value: grade, label: grade }];
+    });
+
     const handleAdd = (e) => {
         e.preventDefault();
         if (editingId) {
-            const updated = data.teachers.map(t => t.id === editingId ? { ...newTeacher, id: editingId } : t);
+            const updated = teachersList.map(t => t.id === editingId ? { ...newTeacher, id: editingId } : t);
             setData({ ...data, teachers: updated });
             setEditingId(null);
         } else {
             const id = 'T-' + Date.now();
-            setData({ ...data, teachers: [...(data.teachers || []), { ...newTeacher, id }] });
+            setData({ ...data, teachers: [...teachersList, { ...newTeacher, id }] });
         }
         setShowAdd(false);
         resetForm();
@@ -58,11 +77,11 @@ export const Teachers = ({ data, setData }) => {
 
     const handleDelete = (id) => {
         if (confirm('Remove teacher from registry?')) {
-            setData({ ...data, teachers: (data.teachers || []).filter(t => t.id !== id) });
+            setData({ ...data, teachers: teachersList.filter(t => t.id !== id) });
         }
     };
 
-    const teachers = data.teachers || [];
+    const teachers = teachersList;
 
     return html`
         <div class="space-y-6">
@@ -100,25 +119,25 @@ export const Teachers = ({ data, setData }) => {
                         <div class="space-y-1 md:col-span-2">
                             <label class="text-[10px] font-bold text-slate-400 uppercase ml-1">Assigned Classes</label>
                             <div class="flex flex-wrap gap-1 p-2 bg-slate-50 rounded-lg min-h-[44px]">
-                                ${data.settings.grades.map(g => html`
+                                ${gradeStreamOptions.map(gs => html`
                                     <label class=${`flex items-center px-2 py-1 rounded text-[10px] font-bold cursor-pointer transition-colors ${
-                                        (newTeacher.grades || '').split(',').map(s => s.trim()).includes(g)
+                                        (newTeacher.grades || '').split(',').map(s => s.trim()).includes(gs.value)
                                             ? 'bg-blue-600 text-white'
                                             : 'bg-white text-slate-400 border border-slate-100'
                                     }`}>
                                         <input 
                                             type="checkbox" 
                                             class="hidden"
-                                            checked=${(newTeacher.grades || '').split(',').map(s => s.trim()).includes(g)}
+                                            checked=${(newTeacher.grades || '').split(',').map(s => s.trim()).includes(gs.value)}
                                             onChange=${(e) => {
                                                 const current = (newTeacher.grades || '').split(',').map(s => s.trim()).filter(s => s);
                                                 const updated = e.target.checked 
-                                                    ? [...current, g]
-                                                    : current.filter(c => c !== g);
+                                                    ? [...current, gs.value]
+                                                    : current.filter(c => c !== gs.value);
                                                 setNewTeacher({...newTeacher, grades: updated.join(', ')});
                                             }}
                                         />
-                                        ${g}
+                                        ${gs.label}
                                     </label>
                                 `)}
                             </div>
@@ -159,8 +178,8 @@ export const Teachers = ({ data, setData }) => {
                                         onChange=${(e) => setNewTeacher({...newTeacher, classTeacherGrade: e.target.value})}
                                         required
                                     >
-                                        <option value="">Select Grade...</option>
-                                        ${data.settings.grades.map(g => html`<option value=${g}>${g}</option>`)}
+                                        <option value="">Select Class...</option>
+                                        ${gradeStreamOptions.map(gs => html`<option value=${gs.value}>${gs.label}</option>`)}
                                     </select>
                                 </div>
                             `}

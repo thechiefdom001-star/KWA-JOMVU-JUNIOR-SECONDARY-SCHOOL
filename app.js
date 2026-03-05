@@ -227,19 +227,45 @@ const App = () => {
             case 'dashboard': return html`<${Dashboard} data=${data} />`;
             case 'batch-reports': {
                 const [batchTerm, setBatchTerm] = useState('T1');
-                const grade = selectedStudent?.grade || 'GRADE 1';
-                const gradeStudents = data.students.filter(s => s.grade === grade);
+                const [batchGrade, setBatchGrade] = useState(selectedStudent?.grade || 'GRADE 1');
+                const [batchStream, setBatchStream] = useState(selectedStudent?.stream || 'ALL');
+                const streams = data.settings.streams || [];
+                
+                const gradeStudents = (data.students || []).filter(s => {
+                    if (s.grade !== batchGrade) return false;
+                    if (batchStream === 'ALL') return true;
+                    return s.stream === batchStream;
+                });
+                
+                const gradeLabel = batchGrade + (batchStream !== 'ALL' ? batchStream : '');
                 return html`
                     <div class="space-y-8">
                         <div class="flex justify-between items-center no-print bg-white p-4 rounded-xl border mb-6">
                             <button onClick=${() => setView('result-analysis')} class="text-blue-600 font-bold flex items-center gap-1">
                                 <span>←</span> Back to Analysis
                             </button>
-                            <div class="text-center">
-                                <h2 class="font-black">Batch Printing: ${grade}</h2>
-                                <p class="text-[10px] text-slate-500 uppercase font-bold">${gradeStudents.length} Reports Ready</p>
+                            <div class="flex items-center gap-4">
+                                <div class="flex flex-col items-center">
+                                    <h2 class="font-black">Batch Printing: ${gradeLabel}</h2>
+                                    <p class="text-[10px] text-slate-500 uppercase font-bold">${gradeStudents.length} Reports Ready</p>
+                                </div>
                             </div>
                             <div class="flex gap-2">
+                                <select 
+                                    value=${batchGrade}
+                                    onChange=${(e) => { setBatchGrade(e.target.value); setBatchStream('ALL'); }}
+                                    class="px-3 py-2 border rounded-lg text-sm font-medium"
+                                >
+                                    ${data.settings.grades.map(g => html`<option value=${g}>${g}</option>`)}
+                                </select>
+                                <select 
+                                    value=${batchStream}
+                                    onChange=${(e) => setBatchStream(e.target.value)}
+                                    class="px-3 py-2 border rounded-lg text-sm font-medium"
+                                >
+                                    <option value="ALL">All Streams</option>
+                                    ${streams.map(s => html`<option value=${s}>${s}</option>`)}
+                                </select>
                                 <select 
                                     value=${batchTerm}
                                     onChange=${(e) => setBatchTerm(e.target.value)}
@@ -530,7 +556,8 @@ const StudentDetail = ({ student, data, setData, onBack, isBatch = false, initia
     const balance = totalDue - totalPaid;
 
     const remark = (data.remarks || []).find(r => r.studentId === student.id) || { teacher: '', principal: '' };
-    const classTeacher = (data.teachers || []).find(t => t.isClassTeacher && t.classTeacherGrade === student.grade);
+    const studentGradeWithStream = student.grade + (student.stream || '');
+    const classTeacher = (data.teachers || []).find(t => t.isClassTeacher && t.classTeacherGrade === studentGradeWithStream);
 
     const handleRemarkChange = (field, val) => {
         const otherRemarks = (data.remarks || []).filter(r => r.studentId !== student.id);

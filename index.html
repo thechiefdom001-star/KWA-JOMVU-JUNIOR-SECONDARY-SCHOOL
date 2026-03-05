@@ -33,6 +33,14 @@
             .card-shadow { box-shadow: none !important; border: 1px solid #000 !important; }
             .page-break { page-break-before: always; }
             .report-page-break { page-break-before: always; border-top: 1px solid #000; padding-top: 2rem; margin-top: 2rem; }
+            .overflow-x-auto { overflow-x: visible !important; }
+            .no-scrollbar { overflow: visible !important; -ms-overflow-style: auto !important; scrollbar-width: auto !important; }
+            .sticky { position: static !important; }
+            table { min-width: auto !important; width: 100% !important; }
+            th, td { white-space: normal !important; }
+            /* Analysis table specific fixes */
+            .analysis-table { min-width: auto !important; font-size: 8px !important; }
+            .analysis-table th, .analysis-table td { padding: 4px !important; }
             @media print {
                 .report-page-break { border-top: none; padding-top: 0; margin-top: 0; }
                 .a4-page { width: 210mm; height: 297mm; padding: 10mm; margin: 0 auto; box-sizing: border-box; position: relative; }

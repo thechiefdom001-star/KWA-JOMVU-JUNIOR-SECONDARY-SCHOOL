@@ -64,7 +64,7 @@ export const Students = ({ data, setData, onSelectStudent }) => {
             assessmentNo: '',
             upiNo: '',
             parentContact: '',
-            stream: '',
+            stream: streams[0] || '',
             previousArrears: 0,
             selectedFees: ['t1', 't2', 't3', 'admission', 'diary', 'development', 'pta']
         });

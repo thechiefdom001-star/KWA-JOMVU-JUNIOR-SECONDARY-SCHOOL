@@ -1189,6 +1189,61 @@ export const Settings = ({ data, setData }) => {
                         </button>
                     </div>
                 </div>
+
+                <!-- Google Sheet Sync Configuration -->
+                <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                    <div class="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4">
+                        <h3 class="text-white font-black text-lg">📊 Google Sheet Sync</h3>
+                        <p class="text-blue-100 text-xs font-medium">Sync student scores with Google Sheets for mobile entry</p>
+                    </div>
+                    <div class="p-6 space-y-4">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="space-y-1">
+                                <label class="text-xs font-bold text-slate-500 uppercase">Google Sheet ID</label>
+                                <input 
+                                    class="w-full p-3 bg-slate-50 rounded-xl outline-none border border-slate-100 focus:border-blue-400"
+                                    value=${settings.googleSheetId || ''}
+                                    onInput=${(e) => setData({...data, settings: {...settings, googleSheetId: e.target.value}})}
+                                    placeholder="e.g. 1abc123xyz..."
+                                />
+                                <p class="text-[10px] text-slate-400">Found in your Google Sheet URL</p>
+                            </div>
+                            <div class="space-y-1">
+                                <label class="text-xs font-bold text-slate-500 uppercase">Deployed Script URL</label>
+                                <input 
+                                    class="w-full p-3 bg-slate-50 rounded-xl outline-none border border-slate-100 focus:border-blue-400"
+                                    value=${settings.googleScriptUrl || ''}
+                                    onInput=${(e) => setData({...data, settings: {...settings, googleScriptUrl: e.target.value}})}
+                                    placeholder="https://script.google.com/macros/s/..."
+                                />
+                                <p class="text-[10px] text-slate-400">Deploy your Apps Script as Web App</p>
+                            </div>
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-xs font-bold text-slate-500 uppercase">API Key (Optional)</label>
+                            <input 
+                                type="password"
+                                class="w-full p-3 bg-slate-50 rounded-xl outline-none border border-slate-100 focus:border-blue-400"
+                                value=${settings.googleApiKey || ''}
+                                onInput=${(e) => setData({...data, settings: {...settings, googleApiKey: e.target.value}})}
+                                placeholder="Enter if using restricted API"
+                            />
+                        </div>
+                        <div class="bg-blue-50 p-4 rounded-xl border border-blue-100">
+                            <p class="text-xs font-bold text-blue-800 mb-2">📋 Sheet Structure Guide</p>
+                            <p class="text-[10px] text-blue-600">Create sheets named: <b>Students, Assessments, Attendance</b></p>
+                            <p class="text-[10px] text-blue-600 mt-1">• Students: id, name, grade, stream, admissionNo, parentContact</p>
+                            <p class="text-[10px] text-blue-600">• Assessments: id, studentId, subject, score, term, examType, academicYear</p>
+                            <p class="text-[10px] text-blue-600">• Attendance: id, studentId, date, status, term, academicYear</p>
+                        </div>
+                        <button 
+                            onClick=${handleUpdateProfile}
+                            class=${`w-full py-3 rounded-xl font-bold transition-all shadow-lg ${updating ? 'bg-blue-500 text-white' : 'bg-blue-600 text-white'}`}
+                        >
+                            ${updating ? '✓ Saved' : 'Save Google Sync Settings'}
+                        </button>
+                    </div>
+                </div>
             </div>
 
             <div class="p-6 bg-red-50 rounded-2xl border border-red-100">

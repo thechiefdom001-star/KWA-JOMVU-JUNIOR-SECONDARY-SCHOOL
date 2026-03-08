@@ -21,6 +21,7 @@ import { Settings } from './components/Settings.js';
 import { Attendance } from './components/Attendance.js';
 import { Sidebar } from './components/Sidebar.js';
 import { Storage } from './lib/storage.js';
+import { googleSheetSync } from './lib/googleSheetSync.js';
 
 const html = htm.bind(h);
 
@@ -35,6 +36,8 @@ const App = () => {
     const [loginPassword, setLoginPassword] = useState('');
     const [showLoginModal, setShowLoginModal] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
+    const [isGoogleSyncing, setIsGoogleSyncing] = useState(false);
+    const [googleSyncStatus, setGoogleSyncStatus] = useState('');
 
     useEffect(() => {
         Storage.save(data);
@@ -104,6 +107,79 @@ const App = () => {
             alert("Cloud sync failed: " + result.error);
         }
         setIsSyncing(false);
+    };
+
+    const testGoogleConnection = async () => {
+        if (!data.settings.googleScriptUrl) {
+            alert("Google Sheet not configured. Go to Settings > Google Sheet Sync to configure.");
+            return;
+        }
+        
+        setGoogleSyncStatus('Testing connection...');
+        googleSheetSync.setSettings(data.settings);
+        
+        try {
+            const result = await googleSheetSync.ping();
+            if (result.success) {
+                alert('✓ Connection successful!\n\n' + result.message + '\nTimestamp: ' + result.timestamp);
+                setGoogleSyncStatus('✓ Connected!');
+            } else {
+                alert('✗ Connection failed:\n' + result.error);
+                setGoogleSyncStatus('✗ Failed');
+            }
+        } catch (error) {
+            alert('✗ Error: ' + error.message);
+            setGoogleSyncStatus('Error');
+        }
+        
+        setTimeout(() => setGoogleSyncStatus(''), 3000);
+    };
+
+    const handleGoogleSync = async (direction = 'pull') => {
+        if (!data.settings.googleScriptUrl) {
+            alert("Google Sheet not configured. Go to Settings > Google Sheet Sync to configure.");
+            return;
+        }
+        
+        setIsGoogleSyncing(true);
+        setGoogleSyncStatus(direction === 'pull' ? 'Fetching from Google...' : 'Pushing to Google...');
+        
+        googleSheetSync.setSettings(data.settings);
+        
+        try {
+            if (direction === 'pull') {
+                const result = await googleSheetSync.twoWaySync(data);
+                if (result.success) {
+                    const merged = Storage.mergeData(data, result.data, 'all');
+                    setData(merged);
+                    setGoogleSyncStatus(`Synced! Students: ${result.stats.students.merged}, Assessments: ${result.stats.assessments.merged}`);
+                    setTimeout(() => setGoogleSyncStatus(''), 3000);
+                } else {
+                    alert("Sync failed: " + result.error);
+                    setGoogleSyncStatus('');
+                }
+            } else {
+                console.log('Starting push to Google...');
+                const result = await googleSheetSync.syncToGoogle({
+                    students: data.students || [],
+                    assessments: data.assessments || [],
+                    attendance: data.attendance || []
+                });
+                console.log('Push result:', result);
+                if (result.success) {
+                    setGoogleSyncStatus(`✓ Sent! ${result.counts?.studentCount || 0} students, ${result.counts?.assessmentCount || 0} marks`);
+                    setTimeout(() => setGoogleSyncStatus(''), 5000);
+                } else {
+                    alert("Push failed: " + result.error + "\n\nCheck browser console (F12) for details.");
+                    setGoogleSyncStatus('');
+                }
+            }
+        } catch (error) {
+            alert("Sync error: " + error.message);
+            setGoogleSyncStatus('');
+        }
+        
+        setIsGoogleSyncing(false);
     };
 
     useEffect(() => {
@@ -394,6 +470,31 @@ const App = () => {
                     >
                         <span class=${isSyncing ? 'animate-spin' : ''}>${isSyncing ? '⏳' : '☁️'}</span>
                         <span class="hidden sm:inline">${isSyncing ? 'Syncing...' : 'Cloud Sync'}</span>
+                    </button>
+
+                    <button 
+                        onClick=${() => {
+                            if (!data.settings.googleScriptUrl) {
+                                alert("Google Sheet not configured. Go to Settings > Google Sheet Sync.");
+                                return;
+                            }
+                            const choice = prompt('Google Sync Options:\n1. Test Connection\n2. Push to Google\n3. Pull from Google\n\nEnter 1, 2 or 3:');
+                            if (choice === '1') {
+                                testGoogleConnection();
+                            } else if (choice === '2') {
+                                handleGoogleSync('push');
+                            } else if (choice === '3') {
+                                handleGoogleSync('pull');
+                            }
+                        }}
+                        disabled=${isGoogleSyncing}
+                        class=${`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase transition-all border ${isGoogleSyncing
+            ? 'bg-green-50 border-green-200 text-green-600 animate-pulse'
+            : 'bg-slate-50 border-slate-100 text-slate-500 hover:border-green-500 hover:text-green-600'
+        }`}
+                    >
+                        <span class=${isGoogleSyncing ? 'animate-spin' : ''}>${isGoogleSyncing ? '⏳' : '📊'}</span>
+                        <span class="hidden sm:inline">${googleSyncStatus || 'Google Sync'}</span>
                     </button>
 
                     <div class="h-8 w-px bg-slate-100 mx-1 hidden sm:block"></div>

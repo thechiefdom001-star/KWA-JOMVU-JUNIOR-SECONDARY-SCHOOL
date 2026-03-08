@@ -95,6 +95,7 @@ const App = () => {
         return () => window.removeEventListener('edutrack:restore', handler);
     }, []);
 
+
     const handleCloudPush = async () => {
         const ws = window.websim || websim;
         if (!ws) {
@@ -107,6 +108,67 @@ const App = () => {
             alert("Cloud sync failed: " + result.error);
         }
         setIsSyncing(false);
+    };
+
+    // helper pushed inside component scope
+    const pushLocalToGoogle = async (sheetData) => {
+        // expects sheetData from fetchAll
+        if (!sheetData || !sheetData.success) return;
+
+        // students
+        const sheetStudents = sheetData.students || [];
+        const sheetMap = new Map(sheetStudents.map(s => [s.admissionNo, s]));
+        for (const s of data.students || []) {
+            const remote = sheetMap.get(s.admissionNo);
+            try {
+                if (!remote) {
+                    await googleSheetSync.pushStudent(s);
+                } else {
+                    // if any field differs, push update
+                    if (JSON.stringify(remote) !== JSON.stringify(s)) {
+                        await googleSheetSync.pushStudent(s);
+                    }
+                }
+            } catch (e) {
+                console.warn('pushLocalToGoogle student error:', e);
+            }
+        }
+
+        // assessments
+        const sheetAssess = sheetData.assessments || [];
+        const assessMap = new Map(sheetAssess.map(a => [
+            `${a.studentId}-${a.subject}-${a.term}-${a.examType}-${a.academicYear}`, a
+        ]));
+        for (const a of data.assessments || []) {
+            const key = `${a.studentId}-${a.subject}-${a.term}-${a.examType}-${a.academicYear}`;
+            const remote = assessMap.get(key);
+            try {
+                if (!remote) {
+                    await googleSheetSync.pushAssessment(a);
+                } else if (JSON.stringify(remote) !== JSON.stringify(a)) {
+                    await googleSheetSync.pushAssessment(a);
+                }
+            } catch (e) {
+                console.warn('pushLocalToGoogle assessment error:', e);
+            }
+        }
+
+        // attendance
+        const sheetAtt = sheetData.attendance || [];
+        const attMap = new Map(sheetAtt.map(a => [`${a.studentId}-${a.date}`, a]));
+        for (const a of data.attendance || []) {
+            const key = `${a.studentId}-${a.date}`;
+            const remote = attMap.get(key);
+            try {
+                if (!remote) {
+                    await googleSheetSync.pushAttendance(a);
+                } else if (JSON.stringify(remote) !== JSON.stringify(a)) {
+                    await googleSheetSync.pushAttendance(a);
+                }
+            } catch (e) {
+                console.warn('pushLocalToGoogle attendance error:', e);
+            }
+        }
     };
 
     const handleGoogleSync = async () => {
@@ -122,11 +184,17 @@ const App = () => {
         
         try {
             // Fetch ALL data from Google Sheet
-            const result = await googleSheetSync.fetchAll();
+            let result = await googleSheetSync.fetchAll();
             
             if (result.success) {
-                console.log('Google data:', result);
-                
+                console.log('Google data (initial):', result);
+
+                // send any local entries that don't exist yet on sheet
+                await pushLocalToGoogle(result);
+
+                // after pushing, re-fetch to get updated sheet state
+                result = await googleSheetSync.fetchAll();
+
                 // Merge with local data
                 const merged = Storage.mergeData(data, {
                     students: result.students || [],
@@ -149,6 +217,28 @@ const App = () => {
         setIsGoogleSyncing(false);
     };
 
+    // when the browser regains connectivity, automatically sync with Google
+    useEffect(() => {
+        const onOnline = () => {
+            if (data.settings?.googleScriptUrl) {
+                handleGoogleSync();
+            }
+        };
+        window.addEventListener('online', onOnline);
+        return () => window.removeEventListener('online', onOnline);
+    }, [data.settings?.googleScriptUrl, handleGoogleSync]);
+
+    // periodic sync every 5 minutes if configured and online
+    useEffect(() => {
+        if (!data.settings?.googleScriptUrl) return;
+        const interval = setInterval(() => {
+            if (navigator.onLine) {
+                handleGoogleSync();
+            }
+        }, 5 * 60 * 1000); // 5 minutes
+        return () => clearInterval(interval);
+    }, [data.settings?.googleScriptUrl, handleGoogleSync]);
+
     // Auto-sync on app load if Google Sheet configured
     useEffect(() => {
         if (!data || !data.settings?.googleScriptUrl) return;
@@ -158,8 +248,12 @@ const App = () => {
             setGoogleSyncStatus('Loading from Google...');
             googleSheetSync.setSettings(data.settings);
             try {
-                const result = await googleSheetSync.fetchAll();
+                let result = await googleSheetSync.fetchAll();
                 if (result.success && (result.students?.length > 0 || result.assessments?.length > 0)) {
+                    // push any pending local records first
+                    await pushLocalToGoogle(result);
+                    // refetch after pushing
+                    result = await googleSheetSync.fetchAll();
                     // Merge Google data with local
                     const merged = Storage.mergeData(data, {
                         students: result.students,

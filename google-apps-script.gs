@@ -336,6 +336,24 @@ function addRecord(sheetName, record, headers) {
     sheet.appendRow(headers);
   }
   
+  // Try to update existing record if the id field matches
+  const idIndex = headers.indexOf('id');
+  if (idIndex >= 0 && record.id) {
+    const allValues = sheet.getDataRange().getValues(); // includes header row
+    for (let i = 1; i < allValues.length; i++) {
+      if (allValues[i][idIndex] == record.id) {
+        // found existing row, update
+        const values = headers.map(header => {
+          const val = record[header];
+          return val !== undefined ? val : '';
+        });
+        sheet.getRange(i+1, 1, 1, values.length).setValues([values]);
+        return { success: true, id: record.id, message: 'Record updated successfully' };
+      }
+    }
+  }
+
+  // if no existing record found, append new one
   const values = headers.map(header => {
     const val = record[header];
     return val !== undefined ? val : '';

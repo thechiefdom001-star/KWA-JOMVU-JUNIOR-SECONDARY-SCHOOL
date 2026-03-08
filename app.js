@@ -109,70 +109,37 @@ const App = () => {
         setIsSyncing(false);
     };
 
-    const testGoogleConnection = async () => {
-        if (!data.settings.googleScriptUrl) {
-            alert("Google Sheet not configured. Go to Settings > Google Sheet Sync to configure.");
-            return;
-        }
-        
-        setGoogleSyncStatus('Testing connection...');
-        googleSheetSync.setSettings(data.settings);
-        
-        try {
-            const result = await googleSheetSync.ping();
-            if (result.success) {
-                alert('✓ Connection successful!\n\n' + result.message + '\nTimestamp: ' + result.timestamp);
-                setGoogleSyncStatus('✓ Connected!');
-            } else {
-                alert('✗ Connection failed:\n' + result.error);
-                setGoogleSyncStatus('✗ Failed');
-            }
-        } catch (error) {
-            alert('✗ Error: ' + error.message);
-            setGoogleSyncStatus('Error');
-        }
-        
-        setTimeout(() => setGoogleSyncStatus(''), 3000);
-    };
-
-    const handleGoogleSync = async (direction = 'pull') => {
+    const handleGoogleSync = async () => {
         if (!data.settings.googleScriptUrl) {
             alert("Google Sheet not configured. Go to Settings > Google Sheet Sync to configure.");
             return;
         }
         
         setIsGoogleSyncing(true);
-        setGoogleSyncStatus(direction === 'pull' ? 'Fetching from Google...' : 'Pushing to Google...');
+        setGoogleSyncStatus('Syncing with Google Sheet...');
         
         googleSheetSync.setSettings(data.settings);
         
         try {
-            if (direction === 'pull') {
-                const result = await googleSheetSync.twoWaySync(data);
-                if (result.success) {
-                    const merged = Storage.mergeData(data, result.data, 'all');
-                    setData(merged);
-                    setGoogleSyncStatus(`Synced! Students: ${result.stats.students.merged}, Assessments: ${result.stats.assessments.merged}`);
-                    setTimeout(() => setGoogleSyncStatus(''), 3000);
-                } else {
-                    alert("Sync failed: " + result.error);
-                    setGoogleSyncStatus('');
-                }
+            // Fetch ALL data from Google Sheet
+            const result = await googleSheetSync.fetchAll();
+            
+            if (result.success) {
+                console.log('Google data:', result);
+                
+                // Merge with local data
+                const merged = Storage.mergeData(data, {
+                    students: result.students || [],
+                    assessments: result.assessments || [],
+                    attendance: result.attendance || []
+                }, 'all');
+                
+                setData(merged);
+                setGoogleSyncStatus(`✓ Synced! ${result.students?.length || 0} students, ${result.assessments?.length || 0} marks from Google`);
+                setTimeout(() => setGoogleSyncStatus(''), 5000);
             } else {
-                console.log('Starting push to Google...');
-                const result = await googleSheetSync.syncToGoogle({
-                    students: data.students || [],
-                    assessments: data.assessments || [],
-                    attendance: data.attendance || []
-                });
-                console.log('Push result:', result);
-                if (result.success) {
-                    setGoogleSyncStatus(`✓ Sent! ${result.counts?.studentCount || 0} students, ${result.counts?.assessmentCount || 0} marks`);
-                    setTimeout(() => setGoogleSyncStatus(''), 5000);
-                } else {
-                    alert("Push failed: " + result.error + "\n\nCheck browser console (F12) for details.");
-                    setGoogleSyncStatus('');
-                }
+                alert("Sync failed: " + result.error);
+                setGoogleSyncStatus('');
             }
         } catch (error) {
             alert("Sync error: " + error.message);
@@ -181,6 +148,39 @@ const App = () => {
         
         setIsGoogleSyncing(false);
     };
+
+    // Auto-sync on app load if Google Sheet configured
+    useEffect(() => {
+        if (!data || !data.settings?.googleScriptUrl) return;
+        
+        // Auto-pull from Google on load (silent sync)
+        const autoSync = async () => {
+            setGoogleSyncStatus('Loading from Google...');
+            googleSheetSync.setSettings(data.settings);
+            try {
+                const result = await googleSheetSync.fetchAll();
+                if (result.success && (result.students?.length > 0 || result.assessments?.length > 0)) {
+                    // Merge Google data with local
+                    const merged = Storage.mergeData(data, {
+                        students: result.students,
+                        assessments: result.assessments,
+                        attendance: result.attendance
+                    }, 'all');
+                    setData(merged);
+                    setGoogleSyncStatus(`✓ Loaded ${result.students?.length || 0} students, ${result.assessments?.length || 0} marks`);
+                    console.log('Auto-synced from Google:', { students: result.students?.length, assessments: result.assessments?.length });
+                } else {
+                    setGoogleSyncStatus('');
+                }
+            } catch (e) {
+                console.log('Auto-sync skipped:', e.message);
+                setGoogleSyncStatus('');
+            }
+        };
+        
+        // Delay slightly to let app initialize
+        setTimeout(autoSync, 3000);
+    }, [data?.settings?.googleScriptUrl]);
 
     useEffect(() => {
         if (!data || !data.settings) return;
@@ -475,26 +475,21 @@ const App = () => {
                     <button 
                         onClick=${() => {
                             if (!data.settings.googleScriptUrl) {
-                                alert("Google Sheet not configured. Go to Settings > Google Sheet Sync.");
+                                alert("Google Sheet not configured. Go to Settings > Teacher Data Sync.");
                                 return;
                             }
-                            const choice = prompt('Google Sync Options:\n1. Test Connection\n2. Push to Google\n3. Pull from Google\n\nEnter 1, 2 or 3:');
-                            if (choice === '1') {
-                                testGoogleConnection();
-                            } else if (choice === '2') {
-                                handleGoogleSync('push');
-                            } else if (choice === '3') {
-                                handleGoogleSync('pull');
-                            }
+                            handleGoogleSync();
                         }}
                         disabled=${isGoogleSyncing}
                         class=${`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase transition-all border ${isGoogleSyncing
             ? 'bg-green-50 border-green-200 text-green-600 animate-pulse'
-            : 'bg-slate-50 border-slate-100 text-slate-500 hover:border-green-500 hover:text-green-600'
+            : googleSyncStatus?.includes('✓')
+                ? 'bg-green-100 border-green-300 text-green-700'
+                : 'bg-slate-50 border-slate-100 text-slate-500 hover:border-green-500 hover:text-green-600'
         }`}
                     >
-                        <span class=${isGoogleSyncing ? 'animate-spin' : ''}>${isGoogleSyncing ? '⏳' : '📊'}</span>
-                        <span class="hidden sm:inline">${googleSyncStatus || 'Google Sync'}</span>
+                        <span class=${isGoogleSyncing ? 'animate-spin' : ''}>${isGoogleSyncing ? '⏳' : '📥'}</span>
+                        <span class="hidden sm:inline">${googleSyncStatus || 'Get from Sheet'}</span>
                     </button>
 
                     <div class="h-8 w-px bg-slate-100 mx-1 hidden sm:block"></div>

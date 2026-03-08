@@ -66,6 +66,55 @@ function doGet(e) {
   let response = {};
   
   try {
+    // Handle data parameter for GET requests
+    let postData = {};
+    if (e.parameter.data) {
+      try {
+        postData = JSON.parse(e.parameter.data);
+      } catch (err) {
+        // Ignore parse errors
+      }
+    }
+    
+    // Handle addAssessment via GET
+    if (action === 'addAssessment' && postData.assessment) {
+      const assessment = postData.assessment;
+      if (!assessment.id) {
+        assessment.id = 'A-' + Date.now();
+      }
+      if (!assessment.date) {
+        assessment.date = new Date().toISOString().split('T')[0];
+      }
+      response = addRecord(SHEET_NAMES.ASSESSMENTS, assessment, ASSESSMENT_HEADERS);
+      return ContentService
+        .createTextOutput(JSON.stringify(response))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    // Handle addStudent via GET
+    if (action === 'addStudent' && postData.student) {
+      response = addRecord(SHEET_NAMES.STUDENTS, postData.student, STUDENT_HEADERS);
+      return ContentService
+        .createTextOutput(JSON.stringify(response))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    // Handle addAttendance via GET
+    if (action === 'addAttendance' && postData.attendance) {
+      response = addRecord(SHEET_NAMES.ATTENDANCE, postData.attendance, ATTENDANCE_HEADERS);
+      return ContentService
+        .createTextOutput(JSON.stringify(response))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    // Handle deleteAssessment via GET
+    if (action === 'deleteAssessment' && postData.recordId) {
+      response = deleteRecord(SHEET_NAMES.ASSESSMENTS, 'id', postData.recordId, ASSESSMENT_HEADERS);
+      return ContentService
+        .createTextOutput(JSON.stringify(response))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    
     switch (action) {
       case 'getAll':
         response = {
@@ -214,6 +263,22 @@ function doPost(e) {
         // Replace all records in a sheet (clear and write)
         response = replaceAllRecords(data.sheetName, data.records, data.headers);
         console.log('replaceAll result:', response);
+        break;
+        
+      case 'deleteRecord':
+        // Delete a specific record by ID
+        const deleteSheet = data.sheetName || SHEET_NAMES.ASSESSMENTS;
+        const deleteHeaders = deleteSheet === SHEET_NAMES.STUDENTS ? STUDENT_HEADERS :
+                             deleteSheet === SHEET_NAMES.ASSESSMENTS ? ASSESSMENT_HEADERS : ATTENDANCE_HEADERS;
+        response = deleteRecord(deleteSheet, 'id', data.recordId, deleteHeaders);
+        break;
+        
+      case 'deleteAssessment':
+        response = deleteRecord(SHEET_NAMES.ASSESSMENTS, 'id', data.recordId, ASSESSMENT_HEADERS);
+        break;
+        
+      case 'deleteStudent':
+        response = deleteRecord(SHEET_NAMES.STUDENTS, 'id', data.recordId, STUDENT_HEADERS);
         break;
         
       default:

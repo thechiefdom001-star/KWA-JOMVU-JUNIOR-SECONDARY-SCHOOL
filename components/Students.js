@@ -2,11 +2,13 @@ import { h } from 'preact';
 import { useState } from 'preact/hooks';
 import htm from 'htm';
 import { Storage } from '../lib/storage.js';
+import { googleSheetSync } from '../lib/googleSheetSync.js';
 
 const html = htm.bind(h);
 
 export const Students = ({ data, setData, onSelectStudent }) => {
     const [showAdd, setShowAdd] = useState(false);
+    const [syncStatus, setSyncStatus] = useState('');
     const [filterGrade, setFilterGrade] = useState('ALL');
     const [filterStream, setFilterStream] = useState('ALL');
     const [filterFinance, setFilterFinance] = useState('ALL');
@@ -41,15 +43,27 @@ export const Students = ({ data, setData, onSelectStudent }) => {
         selectedFees: ['t1', 't2', 't3', 'admission', 'diary', 'development', 'pta'] 
     });
 
-    const handleAdd = (e) => {
+    const handleAdd = async (e) => {
         e.preventDefault();
+        
+        // Save student first
         if (editingId) {
             const updated = data.students.map(s => s.id === editingId ? { ...newStudent, id: editingId } : s);
             setData({ ...data, students: updated });
             setEditingId(null);
         } else {
             const id = Date.now().toString();
-            setData({ ...data, students: [...(data.students || []), { ...newStudent, id }] });
+            const newStudentWithId = { ...newStudent, id };
+            setData({ ...data, students: [...(data.students || []), newStudentWithId] });
+            
+            // Sync to Google Sheet
+            if (data.settings.googleScriptUrl) {
+                setSyncStatus('Syncing to Google...');
+                googleSheetSync.setSettings(data.settings);
+                await googleSheetSync.pushStudent(newStudentWithId);
+                setSyncStatus('✓ Synced!');
+                setTimeout(() => setSyncStatus(''), 2000);
+            }
         }
         setShowAdd(false);
         resetForm();
@@ -148,6 +162,9 @@ export const Students = ({ data, setData, onSelectStudent }) => {
                     <h2 class="text-2xl font-bold">Students Directory</h2>
                     <p class="text-slate-500 text-sm">Manage student enrollment and registration data</p>
                 </div>
+                ${syncStatus && html`
+                    <span class="text-xs font-bold ${syncStatus.includes('✓') ? 'text-green-600' : 'text-blue-600'}">${syncStatus}</span>
+                `}
                 <div class="flex flex-wrap gap-2 no-print w-full md:w-auto">
                     <select 
                         class="bg-white border border-slate-200 text-slate-600 px-4 py-2 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500"

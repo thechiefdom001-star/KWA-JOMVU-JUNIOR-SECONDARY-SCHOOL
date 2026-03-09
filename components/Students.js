@@ -391,6 +391,7 @@ export const Students = ({ data, setData, onSelectStudent }) => {
                                 <td class="px-6 py-4 no-print">
                                     <div class="flex items-center gap-3">
                                         <button 
+                                            type="button"
                                             onClick=${() => handlePromote(student)}
                                             class="bg-blue-50 text-blue-600 px-2 py-1 rounded font-black text-[9px] hover:bg-blue-600 hover:text-white transition-all uppercase"
                                             title="Promote to Next Grade"
@@ -398,18 +399,21 @@ export const Students = ({ data, setData, onSelectStudent }) => {
                                             Promote
                                         </button>
                                         <button 
+                                            type="button"
                                             onClick=${() => onSelectStudent(student.id)}
                                             class="text-blue-600 font-bold text-[10px] hover:underline uppercase tracking-tight"
                                         >
                                             Report
                                         </button>
                                         <button 
+                                            type="button"
                                             onClick=${() => handleEdit(student)}
                                             class="text-slate-600 font-bold text-[10px] hover:underline uppercase tracking-tight"
                                         >
                                             Edit
                                         </button>
                                         <button 
+                                            type="button"
                                             onClick=${() => handleDelete(student.id)}
                                             class="text-red-500 font-bold text-[10px] hover:underline uppercase tracking-tight"
                                         >

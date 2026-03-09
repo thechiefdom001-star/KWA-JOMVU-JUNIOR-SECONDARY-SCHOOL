@@ -55,7 +55,7 @@ export const Dashboard = ({ data }) => {
                     </h3>
                     <div class="space-y-1">
                         ${payments.slice(-5).reverse().map((p, idx) => {
-        const student = students.find(s => s.id === p.studentId);
+        const student = (students || []).find(s => String(s.id) === String(p.studentId));
         return html`
                                 <div class=${`flex justify-between items-center p-3 rounded-xl border-b border-slate-50 last:border-0 ${idx % 2 === 0 ? 'bg-slate-50/50' : ''}`}>
                                     <div>

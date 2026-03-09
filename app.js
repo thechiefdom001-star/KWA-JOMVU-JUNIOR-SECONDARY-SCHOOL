@@ -195,12 +195,12 @@ const App = () => {
                 // after pushing, re-fetch to get updated sheet state
                 result = await googleSheetSync.fetchAll();
 
-                // Merge with local data
-                const merged = Storage.mergeData(data, {
+                // Replace local data with Google data (clean sync, no duplicates)
+                const merged = Storage.replaceWithGoogleData(data, {
                     students: result.students || [],
                     assessments: result.assessments || [],
                     attendance: result.attendance || []
-                }, 'all');
+                });
                 
                 setData(merged);
                 setGoogleSyncStatus(`✓ Synced! ${result.students?.length || 0} students, ${result.assessments?.length || 0} marks from Google`);
@@ -254,12 +254,12 @@ const App = () => {
                     await pushLocalToGoogle(result);
                     // refetch after pushing
                     result = await googleSheetSync.fetchAll();
-                    // Merge Google data with local
-                    const merged = Storage.mergeData(data, {
+                    // Replace local data with Google data (clean sync)
+                    const merged = Storage.replaceWithGoogleData(data, {
                         students: result.students,
                         assessments: result.assessments,
                         attendance: result.attendance
-                    }, 'all');
+                    });
                     setData(merged);
                     setGoogleSyncStatus(`✓ Loaded ${result.students?.length || 0} students, ${result.assessments?.length || 0} marks`);
                     console.log('Auto-synced from Google:', { students: result.students?.length, assessments: result.assessments?.length });
@@ -675,10 +675,11 @@ const StudentDetail = ({ student, data, setData, onBack, isBatch = false, initia
     const isFullYear = selectedTerm === 'FULL';
 
     const getAssessmentsForTerm = (term) => {
+        const academicYear = data.settings.academicYear || settings.academicYear;
         if (term === 'FULL') {
-            return data.assessments.filter(a => a.studentId === student.id);
+            return data.assessments.filter(a => a.studentId === student.id && a.academicYear === academicYear);
         }
-        return data.assessments.filter(a => a.studentId === student.id && a.term === term);
+        return data.assessments.filter(a => a.studentId === student.id && a.term === term && a.academicYear === academicYear);
     };
 
     const assessments = getAssessmentsForTerm(selectedTerm);
@@ -688,7 +689,9 @@ const StudentDetail = ({ student, data, setData, onBack, isBatch = false, initia
     const subjectAverages = subjects.map(subject => {
         const scores = examTypes.map(type => {
             const match = assessments.find(a => a.subject === subject && a.examType === type);
-            return match ? Number(match.score) : null;
+            if (!match) return null;
+            const score = Number(match.score);
+            return isNaN(score) ? null : score;
         }).filter(s => s !== null);
         return scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null;
     });
@@ -702,9 +705,10 @@ const StudentDetail = ({ student, data, setData, onBack, isBatch = false, initia
         : Storage.getStudentAttendance(student.id, data.attendance || [], selectedTerm);
 
     const getYearSummary = () => {
+        const academicYear = data.settings.academicYear || settings.academicYear;
         const terms = ['T1', 'T2', 'T3'];
         return terms.map(term => {
-            const termAssessments = data.assessments.filter(a => a.studentId === student.id && a.term === term);
+            const termAssessments = data.assessments.filter(a => a.studentId === student.id && a.term === term && a.academicYear === academicYear);
             const termSubjects = subjects.map(subject => {
                 const scores = examTypes.map(type => {
                     const match = termAssessments.find(a => a.subject === subject && a.examType === type);
@@ -741,7 +745,14 @@ const StudentDetail = ({ student, data, setData, onBack, isBatch = false, initia
     const feeKeys = ['t1', 't2', 't3', 'breakfast', 'lunch', 'trip', 'bookFund', 'caution', 'uniform', 'studentCard', 'remedial'];
 
     // Calculate total due based ONLY on student's selected payable items
-    const selectedKeys = student.selectedFees || ['t1', 't2', 't3'];
+    let selectedKeys;
+    if (typeof student.selectedFees === 'string') {
+        selectedKeys = student.selectedFees.split(',').map(f => f.trim()).filter(f => f);
+    } else if (Array.isArray(student.selectedFees)) {
+        selectedKeys = student.selectedFees;
+    } else {
+        selectedKeys = ['t1', 't2', 't3'];
+    }
     const totalDue = feeStructure ? selectedKeys.reduce((sum, key) => sum + (feeStructure[key] || 0), 0) : 0;
     const balance = totalDue - totalPaid;
 
@@ -760,7 +771,7 @@ const StudentDetail = ({ student, data, setData, onBack, isBatch = false, initia
     return html`
         <div class="space-y-4 print:space-y-2">
             ${!isBatch && html`
-                <button onClick=${onBack} class="text-blue-600 flex items-center gap-1 no-print">
+                <button type="button" onClick=${onBack} class="text-blue-600 flex items-center gap-1 no-print">
                     <span class="text-xl">←</span> Back to Students
                 </button>
             `}
@@ -885,15 +896,21 @@ const StudentDetail = ({ student, data, setData, onBack, isBatch = false, initia
                                 </thead>
                                 <tbody class="divide-y print:divide-black">
                                     ${subjects.map(subject => {
-                const t1Assessments = data.assessments.filter(a => a.studentId === student.id && a.term === 'T1' && a.subject === subject);
-                const t2Assessments = data.assessments.filter(a => a.studentId === student.id && a.term === 'T2' && a.subject === subject);
-                const t3Assessments = data.assessments.filter(a => a.studentId === student.id && a.term === 'T3' && a.subject === subject);
+                const academicYear = data.settings.academicYear || settings.academicYear;
+                const t1Assessments = data.assessments.filter(a => a.studentId === student.id && a.term === 'T1' && a.subject === subject && a.academicYear === academicYear);
+                const t2Assessments = data.assessments.filter(a => a.studentId === student.id && a.term === 'T2' && a.subject === subject && a.academicYear === academicYear);
+                const t3Assessments = data.assessments.filter(a => a.studentId === student.id && a.term === 'T3' && a.subject === subject && a.academicYear === academicYear);
 
                 const getScores = (termAssessments) => {
                     const scores = {};
                     examTypes.forEach(type => {
                         const match = termAssessments.find(a => a.examType === type);
-                        scores[type] = match ? Number(match.score) : null;
+                        if (match) {
+                            const score = Number(match.score);
+                            scores[type] = isNaN(score) ? null : score;
+                        } else {
+                            scores[type] = null;
+                        }
                     });
                     const valid = Object.values(scores).filter(s => s !== null);
                     return {

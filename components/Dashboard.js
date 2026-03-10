@@ -1,14 +1,41 @@
 import { h } from 'preact';
+import { useState, useEffect } from 'preact/hooks';
 import htm from 'htm';
 import { Storage } from '../lib/storage.js';
+import { googleSheetSync } from '../lib/googleSheetSync.js';
 
 const html = htm.bind(h);
 
-export const Dashboard = ({ data }) => {
+export const Dashboard = ({ data, googleSyncStatus }) => {
     const students = data?.students || [];
     const payments = data?.payments || [];
     const assessments = data?.assessments || [];
     const settings = data?.settings || { currency: 'KES.', grades: [], feeStructures: [] };
+    
+    const [activeUsers, setActiveUsers] = useState(0);
+    const [lastActivity, setLastActivity] = useState(null);
+
+    // Check for active users periodically
+    useEffect(() => {
+        if (!settings.googleScriptUrl) return;
+        
+        const checkActiveUsers = async () => {
+            googleSheetSync.setSettings(settings);
+            const result = await googleSheetSync.getActiveUsers();
+            if (result.success) {
+                setActiveUsers(result.activeCount || 0);
+                if (result.lastActivity) {
+                    setLastActivity(new Date(result.lastActivity));
+                }
+            }
+        };
+        
+        // Check immediately and then every 30 seconds
+        checkActiveUsers();
+        const interval = setInterval(checkActiveUsers, 30000);
+        
+        return () => clearInterval(interval);
+    }, [settings.googleScriptUrl]);
 
     const totalStudents = students.length;
     const totalTeachers = (data?.teachers || []).length;
@@ -32,6 +59,41 @@ export const Dashboard = ({ data }) => {
 
     return html`
         <div class="space-y-8 animate-in fade-in duration-500">
+            <!-- Sync Status Banner -->
+            ${googleSyncStatus && html`
+                <div class="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 py-2 rounded-xl shadow-lg shadow-blue-200 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="animate-pulse">🔄</span>
+                        <span class="font-bold text-sm">${googleSyncStatus}</span>
+                    </div>
+                </div>
+            `}
+            ${settings.googleScriptUrl && html`
+                <div class="bg-gradient-to-r from-green-600 to-green-700 text-white px-4 py-3 rounded-xl shadow-lg shadow-green-200 flex items-center gap-4">
+                    <div class="flex items-center gap-3">
+                        <span class="text-2xl">📊</span>
+                        <div>
+                            <p class="font-bold">Google Sheet Connected</p>
+                            <p class="text-xs text-green-100">Real-time data sync enabled</p>
+                        </div>
+                    </div>
+                    <div class="ml-auto flex items-center gap-4">
+                        <div class="text-center">
+                            <div class="flex items-center gap-1">
+                                <span class="text-2xl font-black">${activeUsers}</span>
+                                <span class="text-xs">${activeUsers === 1 ? 'user' : 'users'}</span>
+                            </div>
+                            <p class="text-[10px] text-green-100">Online now</p>
+                        </div>
+                        <div class="h-10 w-px bg-white/20"></div>
+                        <div class="text-right">
+                            <p class="text-xs">Last activity</p>
+                            <p class="text-sm font-bold">${lastActivity ? lastActivity.toLocaleTimeString() : 'Just now'}</p>
+                        </div>
+                    </div>
+                </div>
+            `}
+
             <div class="no-print">
                 <h1 class="text-3xl font-extrabold tracking-tight">System Overview</h1>
                 <p class="text-slate-500 mt-1">Welcome back to ${settings.schoolName || 'the portal'}.</p>

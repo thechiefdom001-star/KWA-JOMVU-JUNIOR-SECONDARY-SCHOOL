@@ -394,7 +394,7 @@ const App = () => {
 
     const renderView = () => {
         switch (view) {
-            case 'dashboard': return html`<${Dashboard} data=${data} />`;
+            case 'dashboard': return html`<${Dashboard} data=${data} googleSyncStatus=${googleSyncStatus} />`;
             case 'batch-reports': {
                 const [batchTerm, setBatchTerm] = useState('T1');
                 const [batchGrade, setBatchGrade] = useState(selectedStudent?.grade || 'GRADE 1');
@@ -503,7 +503,7 @@ const App = () => {
             case 'archives': return html`<${Archives} data=${data} />`;
             case 'settings': return html`<${Settings} data=${data} setData=${setData} />`;
             case 'student-detail': return html`<${StudentDetail} student=${selectedStudent} data=${data} setData=${setData} onBack=${() => setView('students')} />`;
-            default: return html`<${Dashboard} data=${data} />`;
+            default: return html`<${Dashboard} data=${data} googleSyncStatus=${googleSyncStatus} />`;
         }
     };
 

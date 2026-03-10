@@ -13,6 +13,11 @@ export const Students = ({ data, setData, onSelectStudent }) => {
     const [filterStream, setFilterStream] = useState('ALL');
     const [filterFinance, setFilterFinance] = useState('ALL');
 
+    // Get hidden fee items from settings (per grade group)
+    const hiddenFeeItems = data.settings?.hiddenFeeItems || {};
+    const allHiddenFees = Object.values(hiddenFeeItems).flat();
+    
+    // Filter out hidden fee items
     const defaultFeeOptions = [
         { key: 'admission', label: 'Admission' }, { key: 'diary', label: 'Diary' }, { key: 'development', label: 'Development' },
         { key: 't1', label: 'T1 Tuition' }, { key: 't2', label: 'T2 Tuition' }, { key: 't3', label: 'T3 Tuition' },
@@ -22,10 +27,11 @@ export const Students = ({ data, setData, onSelectStudent }) => {
         { key: 'assessmentFee', label: 'Assessment Fee' }, { key: 'projectFee', label: 'Project Fee' },
         { key: 'activityFees', label: 'Activity Fees' }, { key: 'tieAndBadge', label: 'Tie & Badge' }, { key: 'academicSupport', label: 'Academic Support' },
         { key: 'pta', label: 'PTA' }
-    ];
+    ].filter(opt => !allHiddenFees.includes(opt.key));
 
     const customFeeOptions = (data.settings.customFeeColumns || []).map(cf => ({ key: cf.key, label: cf.label }));
-    const feeOptions = [...defaultFeeOptions, ...customFeeOptions];
+    const customFeeOptionsFiltered = customFeeOptions.filter(opt => !allHiddenFees.includes(opt.key));
+    const feeOptions = [...defaultFeeOptions, ...customFeeOptionsFiltered];
 
     const [editingId, setEditingId] = useState(null);
     const streams = data.settings.streams || ['A', 'B', 'C'];

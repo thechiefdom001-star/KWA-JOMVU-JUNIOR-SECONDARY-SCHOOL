@@ -16,7 +16,8 @@
 const SHEET_NAMES = {
   STUDENTS: 'Students',
   ASSESSMENTS: 'Assessments',
-  ATTENDANCE: 'Attendance'
+  ATTENDANCE: 'Attendance',
+  ACTIVITY: 'Activity'  // For tracking active users
 };
 
 // Column headers for each sheet
@@ -281,6 +282,14 @@ function doPost(e) {
         response = deleteRecord(SHEET_NAMES.STUDENTS, 'id', data.recordId, STUDENT_HEADERS);
         break;
         
+      case 'setActive':
+        response = setActiveUser(data.device, data.timestamp);
+        break;
+        
+      case 'getActiveUsers':
+        response = getActiveUsers();
+        break;
+        
       default:
         response = { error: 'Unknown action' };
     }
@@ -540,4 +549,76 @@ function testSetup() {
     studentCount: getAllRecords(SHEET_NAMES.STUDENTS, STUDENT_HEADERS).length,
     assessmentCount: getAllRecords(SHEET_NAMES.ASSESSMENTS, ASSESSMENT_HEADERS).length
   };
+}
+
+/**
+ * Track active users - update last activity timestamp
+ */
+function setActiveUser(deviceName, timestamp) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    let activitySheet = ss.getSheetByName(SHEET_NAMES.ACTIVITY);
+    
+    if (!activitySheet) {
+      activitySheet = ss.insertSheet(SHEET_NAMES.ACTIVITY);
+      activitySheet.appendRow(['device', 'lastActivity', 'timestamp']);
+    }
+    
+    // Find existing device or add new
+    const data = activitySheet.getDataRange().getValues();
+    const deviceRow = data.findIndex(row => row[0] === deviceName);
+    
+    const now = new Date(timestamp ? parseInt(timestamp) : Date.now());
+    const nowStr = now.toISOString();
+    
+    if (deviceRow > 0) {
+      activitySheet.getRange(deviceRow + 1, 2, 1, 2).setValues([[nowStr, timestamp || Date.now().toString()]]);
+    } else {
+      activitySheet.appendRow([deviceName, nowStr, timestamp || Date.now().toString()]);
+    }
+    
+    return { success: true, message: 'Active status updated' };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Get active users - count users active in last 5 minutes
+ */
+function getActiveUsers() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    let activitySheet = ss.getSheetByName(SHEET_NAMES.ACTIVITY);
+    
+    if (!activitySheet) {
+      return { success: true, activeCount: 0, lastActivity: null };
+    }
+    
+    const data = activitySheet.getDataRange().getValues();
+    const headers = data[0];
+    const rows = data.slice(1);
+    
+    const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+    let activeCount = 0;
+    let lastActivity = null;
+    
+    rows.forEach(row => {
+      const timestamp = parseInt(row[2]);
+      if (timestamp && timestamp > fiveMinutesAgo) {
+        activeCount++;
+        if (!lastActivity || timestamp > parseInt(lastActivity)) {
+          lastActivity = timestamp;
+        }
+      }
+    });
+    
+    return { 
+      success: true, 
+      activeCount: activeCount, 
+      lastActivity: lastActivity ? lastActivity.toString() : null 
+    };
+  } catch (error) {
+    return { success: false, activeCount: 0, error: error.message };
+  }
 }

@@ -34,8 +34,21 @@ export const Students = ({ data, setData, onSelectStudent }) => {
     const customFeeOptionsFiltered = customFeeOptions.filter(opt => !allHiddenFees.includes(opt.key));
     const feeOptions = [...defaultFeeOptions, ...customFeeOptionsFiltered];
 
+    // Helper function to get default fees excluding hidden ones
+    const getDefaultFees = () => {
+        const defaultFeeKeys = ['t1', 't2', 't3', 'admission', 'diary', 'development', 'pta'];
+        return defaultFeeKeys.filter(key => !allHiddenFees.includes(key));
+    };
+
+    // Helper function to filter out hidden fees from a fee array
+    const filterHiddenFees = (fees) => {
+        if (!Array.isArray(fees)) return getDefaultFees();
+        return fees.filter(key => !allHiddenFees.includes(key));
+    };
+
     const [editingId, setEditingId] = useState(null);
     const streams = data.settings.streams || ['A', 'B', 'C'];
+    
     const [newStudent, setNewStudent] = useState({
         name: '',
         grade: data.settings.grades[0] || 'GRADE 1',
@@ -47,7 +60,7 @@ export const Students = ({ data, setData, onSelectStudent }) => {
         upiNo: '',
         parentContact: '',
         previousArrears: 0,
-        selectedFees: ['t1', 't2', 't3', 'admission', 'diary', 'development', 'pta']
+        selectedFees: getDefaultFees()
     });
 
     const handleAdd = async (e) => {
@@ -55,8 +68,9 @@ export const Students = ({ data, setData, onSelectStudent }) => {
 
         // Save student first
         if (editingId) {
-            const updatedStudent = { ...newStudent, id: editingId };
-            const updated = data.students.map(s => s.id === editingId ? updatedStudent : s);
+            // Filter out hidden fees before saving
+            const filteredStudent = { ...newStudent, id: editingId, selectedFees: filterHiddenFees(newStudent.selectedFees) };
+            const updated = data.students.map(s => s.id === editingId ? filteredStudent : s);
             setData({ ...data, students: updated });
             setEditingId(null);
 
@@ -64,7 +78,7 @@ export const Students = ({ data, setData, onSelectStudent }) => {
             if (data.settings.googleScriptUrl) {
                 setSyncStatus('Updating Google...');
                 googleSheetSync.setSettings(data.settings);
-                const resp = await googleSheetSync.pushStudent(updatedStudent);
+                const resp = await googleSheetSync.pushStudent(filteredStudent);
                 if (!resp.success) {
                     console.warn('Failed to update student on Google:', resp.error);
                 }
@@ -73,7 +87,8 @@ export const Students = ({ data, setData, onSelectStudent }) => {
             }
         } else {
             const id = Date.now().toString();
-            const newStudentWithId = { ...newStudent, id };
+            // Filter out hidden fees before saving
+            const newStudentWithId = { ...newStudent, id, selectedFees: filterHiddenFees(newStudent.selectedFees) };
             setData({ ...data, students: [...(data.students || []), newStudentWithId] });
 
             // Sync to Google Sheet
@@ -103,13 +118,15 @@ export const Students = ({ data, setData, onSelectStudent }) => {
             parentContact: '',
             stream: streams[0] || '',
             previousArrears: 0,
-            selectedFees: ['t1', 't2', 't3', 'admission', 'diary', 'development', 'pta']
+            selectedFees: getDefaultFees()
         });
         setEditingId(null);
     };
 
     const handleEdit = (student) => {
-        setNewStudent({ ...student, category: student.category || 'Normal' });
+        // Filter out hidden fees from student's selectedFees
+        const filteredFees = filterHiddenFees(student.selectedFees);
+        setNewStudent({ ...student, category: student.category || 'Normal', selectedFees: filteredFees });
         setEditingId(student.id);
         setShowAdd(true);
     };
@@ -152,6 +169,9 @@ export const Students = ({ data, setData, onSelectStudent }) => {
     };
 
     const toggleFee = (key) => {
+        // Don't allow toggling hidden fees
+        if (allHiddenFees.includes(key)) return;
+        
         const current = newStudent.selectedFees || [];
         const updated = current.includes(key)
             ? current.filter(k => k !== key)

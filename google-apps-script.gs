@@ -173,6 +173,46 @@ function doGet(e) {
         response = setActiveUser(device, timestamp);
         break;
         
+      case 'getActiveUsers':
+        response = getActiveUsers();
+        break;
+        
+      case 'bulkPushStudents':
+        let studentData = {};
+        if (e.parameter.data) {
+          try {
+            studentData = JSON.parse(e.parameter.data);
+          } catch (err) {
+            return ContentService.createTextOutput(JSON.stringify({ error: 'Invalid JSON data' })).setMimeType(ContentService.MimeType.JSON);
+          }
+        }
+        response = bulkPushRecords(SHEET_NAMES.STUDENTS, studentData.students || [], STUDENT_HEADERS);
+        break;
+        
+      case 'bulkPushAssessments':
+        let assessData = {};
+        if (e.parameter.data) {
+          try {
+            assessData = JSON.parse(e.parameter.data);
+          } catch (err) {
+            return ContentService.createTextOutput(JSON.stringify({ error: 'Invalid JSON data' })).setMimeType(ContentService.MimeType.JSON);
+          }
+        }
+        response = bulkPushRecords(SHEET_NAMES.ASSESSMENTS, assessData.assessments || [], ASSESSMENT_HEADERS);
+        break;
+        
+      case 'bulkPushAttendance':
+        let attData = {};
+        if (e.parameter.data) {
+          try {
+            attData = JSON.parse(e.parameter.data);
+          } catch (err) {
+            return ContentService.createTextOutput(JSON.stringify({ error: 'Invalid JSON data' })).setMimeType(ContentService.MimeType.JSON);
+          }
+        }
+        response = bulkPushRecords(SHEET_NAMES.ATTENDANCE, attData.attendance || [], ATTENDANCE_HEADERS);
+        break;
+        
       default:
         response = { error: 'Unknown action' };
     }
@@ -507,6 +547,80 @@ function replaceAllRecords(sheetName, records, headers) {
     count: records.length,
     message: `${records.length} records written to ${sheetName}` 
   };
+}
+
+/**
+ * Bulk push records - fast batch add/update for multiple records
+ */
+function bulkPushRecords(sheetName, records, headers) {
+  if (!records || records.length === 0) {
+    return { success: true, count: 0, message: 'No records to push' };
+  }
+  
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(sheetName);
+  
+  if (!sheet) {
+    sheet = ss.insertSheet(sheetName);
+    sheet.appendRow(headers);
+  }
+  
+  try {
+    const existingData = sheet.getDataRange().getValues();
+    const idIndex = headers.indexOf('id');
+    const keyIndex = sheetName === SHEET_NAMES.STUDENTS ? headers.indexOf('admissionNo') : -1;
+    
+    let updatedCount = 0;
+    let addedCount = 0;
+    
+    // Build a map of existing records for faster lookup
+    const existingMap = new Map();
+    for (let i = 1; i < existingData.length; i++) {
+      if (idIndex >= 0 && existingData[i][idIndex]) {
+        existingMap.set(String(existingData[i][idIndex]), i);
+      } else if (keyIndex >= 0 && existingData[i][keyIndex]) {
+        existingMap.set(String(existingData[i][keyIndex]), i);
+      }
+    }
+    
+    // Batch updates
+    const newRows = [];
+    
+    for (const record of records) {
+      const recordId = String(record.id || record[headers[0]] || '');
+      const recordKey = keyIndex >= 0 ? String(record[headers[keyIndex]] || '') : recordId;
+      const lookupKey = keyIndex >= 0 ? recordKey : recordId;
+      const existingRowIndex = existingMap.get(lookupKey);
+      
+      const values = headers.map(h => record[h] || '');
+      
+      if (existingRowIndex) {
+        // Update existing row
+        sheet.getRange(existingRowIndex + 1, 1, 1, values.length).setValues([values]);
+        updatedCount++;
+      } else {
+        // Collect new rows for batch insert
+        newRows.push(values);
+        addedCount++;
+      }
+    }
+    
+    // Batch insert all new rows at once
+    if (newRows.length > 0) {
+      const lastRow = sheet.getLastRow();
+      sheet.getRange(lastRow + 1, 1, newRows.length, headers.length).setValues(newRows);
+    }
+    
+    return {
+      success: true,
+      count: updatedCount + addedCount,
+      updated: updatedCount,
+      added: addedCount,
+      message: `Bulk push: ${addedCount} added, ${updatedCount} updated`
+    };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
 }
 
 /**

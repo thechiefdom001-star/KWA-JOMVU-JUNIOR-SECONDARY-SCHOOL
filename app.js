@@ -196,102 +196,75 @@ const App = () => {
 
     // helper pushed inside component scope
     const pushLocalToGoogle = useCallback(async (sheetData) => {
-        console.log('📤 pushLocalToGoogle called with', sheetData?.students?.length, 'sheet students');
-        // expects sheetData from fetchAll
-        if (!sheetData || !sheetData.success) {
-            console.log('   ⚠️ No sheetData or not successful');
-            return;
-        }
+        console.log('📤 pushLocalToGoogle OPTIMIZED - called with', sheetData?.students?.length, 'sheet students');
+        if (!sheetData || !sheetData.success) return;
 
-        // students
-        console.log('   📝 Processing students...');
+        // Create efficient maps for comparison
         const sheetStudents = sheetData.students || [];
-        
-        // Create a map using the CLEANED admission numbers for better comparison
         const sheetMap = new Map(sheetStudents.map(s => {
-            // Normalize the sheet student data similar to replaceWithGoogleData
-            const cleaned = {
-                ...s,
-                selectedFees: Storage.parseSelectedFees(s.selectedFees)
-            };
+            const cleaned = { ...s, selectedFees: Storage.parseSelectedFees(s.selectedFees) };
             return [s.admissionNo?.trim() || '', cleaned];
         }));
         
-        const localStudents = data.students || [];
-        console.log('   Comparing', localStudents.length, 'local students against', sheetMap.size, 'sheet students');
-        
-        for (const s of localStudents) {
-            const admNo = s.admissionNo?.trim() || '';
-            const remote = sheetMap.get(admNo);
-            try {
-                if (!remote) {
-                    console.log('     Pushing new student:', s.name);
-                    await googleSheetSync.pushStudent(s);
-                } else {
-                    // Compare cleaned versions to avoid false positives from Java objects
-                    const remoteStr = JSON.stringify({
-                        ...remote,
-                        id: s.id // Use local ID for comparison
-                    });
-                    const localStr = JSON.stringify(s);
-                    
-                    if (remoteStr !== localStr) {
-                        console.log('     Updating student:', s.name);
-                        await googleSheetSync.pushStudent(s);
-                    }
-                }
-            } catch (e) {
-                console.warn('pushLocalToGoogle student error for', s.name, ':', e);
-            }
-        }
-
-        // assessments
-        console.log('   📝 Processing assessments...');
         const sheetAssess = sheetData.assessments || [];
-        const assessMap = new Map(sheetAssess.map(a => [
-            `${a.studentId}-${a.subject}-${a.term}-${a.examType}-${a.academicYear}`, a
-        ]));
+        const assessMap = new Map(sheetAssess.map(a => 
+            [`${a.studentId}-${a.subject}-${a.term}-${a.examType}-${a.academicYear}`, a]
+        ));
         
-        const localAssessments = data.assessments || [];
-        console.log('   Comparing', localAssessments.length, 'local assessments against', assessMap.size, 'sheet assessments');
-        
-        for (const a of localAssessments) {
-            const key = `${a.studentId}-${a.subject}-${a.term}-${a.examType}-${a.academicYear}`;
-            const remote = assessMap.get(key);
-            try {
-                if (!remote) {
-                    await googleSheetSync.pushAssessment(a);
-                } else if (JSON.stringify(remote) !== JSON.stringify(a)) {
-                    await googleSheetSync.pushAssessment(a);
-                }
-            } catch (e) {
-                console.warn('pushLocalToGoogle assessment error:', e);
-            }
-        }
-
-        // attendance
-        console.log('   📝 Processing attendance...');
         const sheetAtt = sheetData.attendance || [];
         const attMap = new Map(sheetAtt.map(a => [`${a.studentId}-${a.date}`, a]));
-        
-        const localAttendance = data.attendance || [];
-        console.log('   Comparing', localAttendance.length, 'local attendance against', attMap.size, 'sheet attendance');
-        
-        for (const a of localAttendance) {
-            const key = `${a.studentId}-${a.date}`;
-            const remote = attMap.get(key);
-            try {
-                if (!remote) {
-                    await googleSheetSync.pushAttendance(a);
-                } else if (JSON.stringify(remote) !== JSON.stringify(a)) {
-                    await googleSheetSync.pushAttendance(a);
-                }
-            } catch (e) {
-                console.warn('pushLocalToGoogle attendance error:', e);
+
+        // Identify ALL changes first
+        const studentsToSync = [];
+        const assessmentsToSync = [];
+        const attendanceToSync = [];
+
+        for (const s of (data.students || [])) {
+            const admNo = s.admissionNo?.trim() || '';
+            const remote = sheetMap.get(admNo);
+            if (!remote || JSON.stringify(s) !== JSON.stringify({...remote, id: s.id})) {
+                studentsToSync.push(s);
             }
         }
+
+        for (const a of (data.assessments || [])) {
+            const key = `${a.studentId}-${a.subject}-${a.term}-${a.examType}-${a.academicYear}`;
+            const remote = assessMap.get(key);
+            if (!remote || JSON.stringify(a) !== JSON.stringify(remote)) {
+                assessmentsToSync.push(a);
+            }
+        }
+
+        for (const a of (data.attendance || [])) {
+            const key = `${a.studentId}-${a.date}`;
+            const remote = attMap.get(key);
+            if (!remote || JSON.stringify(a) !== JSON.stringify(remote)) {
+                attendanceToSync.push(a);
+            }
+        }
+
+        console.log('   ⚡ BULK SYNC (parallel):', {students: studentsToSync.length, assessments: assessmentsToSync.length, attendance: attendanceToSync.length});
+
+        // Push ALL in parallel using bulk operations
+        const syncPromises = [];
         
-        console.log('   ✅ pushLocalToGoogle completed successfully');
+        if (studentsToSync.length > 0) {
+            syncPromises.push(googleSheetSync.bulkPushStudents(studentsToSync).catch(e => console.error('Student sync error:', e)));
+        }
+        
+        if (assessmentsToSync.length > 0) {
+            syncPromises.push(googleSheetSync.bulkPushAssessments(assessmentsToSync).catch(e => console.error('Assessment sync error:', e)));
+        }
+        
+        if (attendanceToSync.length > 0) {
+            syncPromises.push(googleSheetSync.bulkPushAttendance(attendanceToSync).catch(e => console.error('Attendance sync error:', e)));
+        }
+
+        if (syncPromises.length > 0) {
+            await Promise.all(syncPromises);
+        }
+        
+        console.log('   ✅ Parallel bulk sync completed');
     }, [data, googleSheetSync]);
 
     const handleGoogleSync = useCallback(async () => {

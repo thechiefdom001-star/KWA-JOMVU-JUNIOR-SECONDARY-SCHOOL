@@ -8,25 +8,38 @@ const html = htm.bind(h);
 
 export const Dashboard = ({ data, googleSyncStatus }) => {
     const students = data?.students || [];
+    console.log('📲 Dashboard rendering, students:', students.length, 'sync status:', googleSyncStatus);
     const payments = data?.payments || [];
     const assessments = data?.assessments || [];
     const settings = data?.settings || { currency: 'KES.', grades: [], feeStructures: [] };
     
-    const [activeUsers, setActiveUsers] = useState(0);
+    const [activeUsers, setActiveUsers] = useState([]);
     const [lastActivity, setLastActivity] = useState(null);
 
     // Check for active users periodically
     useEffect(() => {
-        if (!settings.googleScriptUrl) return;
+        if (!settings.googleScriptUrl) {
+            console.log('⏭️ No Google Sheet URL configured');
+            return;
+        }
         
         const checkActiveUsers = async () => {
-            googleSheetSync.setSettings(settings);
-            const result = await googleSheetSync.getActiveUsers();
-            if (result.success) {
-                setActiveUsers(result.activeCount || 0);
-                if (result.lastActivity) {
-                    setLastActivity(new Date(result.lastActivity));
+            try {
+                googleSheetSync.setSettings(settings);
+                const result = await googleSheetSync.getActiveUsers();
+                console.log('📊 Active users check result:', result);
+                
+                if (result.success) {
+                    setActiveUsers(result.activeUsers || []);
+                    if (result.lastActivity) {
+                        setLastActivity(new Date(parseInt(result.lastActivity)));
+                    }
+                    console.log('✅ Active users updated:', result.activeUsers?.length);
+                } else {
+                    console.warn('⚠️ Failed to fetch active users:', result);
                 }
+            } catch (error) {
+                console.error('❌ Error checking active users:', error);
             }
         };
         
@@ -69,28 +82,44 @@ export const Dashboard = ({ data, googleSyncStatus }) => {
                 </div>
             `}
             ${settings.googleScriptUrl && html`
-                <div class="bg-gradient-to-r from-green-600 to-green-700 text-white px-4 py-3 rounded-xl shadow-lg shadow-green-200 flex items-center gap-4">
-                    <div class="flex items-center gap-3">
+                <div class="bg-gradient-to-r from-green-600 to-green-700 text-white px-4 py-3 rounded-xl shadow-lg shadow-green-200">
+                    <div class="flex items-center gap-3 mb-3">
                         <span class="text-2xl">📊</span>
                         <div>
                             <p class="font-bold">Google Sheet Connected</p>
                             <p class="text-xs text-green-100">Real-time data sync enabled</p>
                         </div>
                     </div>
-                    <div class="ml-auto flex items-center gap-4">
-                        <div class="text-center">
-                            <div class="flex items-center gap-1">
-                                <span class="text-2xl font-black">${activeUsers}</span>
-                                <span class="text-xs">${activeUsers === 1 ? 'user' : 'users'}</span>
+                    
+                    <!-- Active Users Display -->
+                    ${activeUsers.length > 0 ? html`
+                        <div class="mt-4 pt-4 border-t border-white/20">
+                            <p class="text-xs font-bold uppercase text-green-100 mb-3">👥 Online Users (${activeUsers.length})</p>
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                ${activeUsers.map(user => {
+                                    const lastTime = new Date(user.lastActivity);
+                                    const role = user.device.includes('admin@') ? '👨‍💼 Admin' : '👨‍🏫 Teacher';
+                                    const username = user.device.split('@')[1]?.split('-')[0] || 'Unknown';
+                                    return html`
+                                        <div class="bg-white/10 backdrop-blur rounded-lg p-3 flex items-center gap-3">
+                                            <div class="flex-1 min-w-0">
+                                                <p class="text-sm font-bold truncate">${role}</p>
+                                                <p class="text-xs text-green-100 truncate">${username}</p>
+                                                <p class="text-[10px] text-green-200 mt-1">Active: ${lastTime.toLocaleTimeString()}</p>
+                                            </div>
+                                            <div class="flex-shrink-0">
+                                                <span class="inline-flex h-3 w-3 rounded-full bg-green-300 animate-pulse"></span>
+                                            </div>
+                                        </div>
+                                    `;
+                                })}
                             </div>
-                            <p class="text-[10px] text-green-100">Online now</p>
                         </div>
-                        <div class="h-10 w-px bg-white/20"></div>
-                        <div class="text-right">
-                            <p class="text-xs">Last activity</p>
-                            <p class="text-sm font-bold">${lastActivity ? lastActivity.toLocaleTimeString() : 'Just now'}</p>
+                    ` : html`
+                        <div class="mt-4 pt-4 border-t border-white/20">
+                            <p class="text-xs text-green-100">No users currently active. Last activity: ${lastActivity ? lastActivity.toLocaleTimeString() : 'N/A'}</p>
                         </div>
-                    </div>
+                    `}
                 </div>
             `}
 

@@ -12,6 +12,7 @@ export const Students = ({ data, setData, onSelectStudent }) => {
     const [filterGrade, setFilterGrade] = useState('ALL');
     const [filterStream, setFilterStream] = useState('ALL');
     const [filterFinance, setFilterFinance] = useState('ALL');
+    const [searchTerm, setSearchTerm] = useState('');
 
     // Get hidden fee items from settings (per grade group)
     const hiddenFeeItems = data.settings?.hiddenFeeItems || {};
@@ -159,6 +160,16 @@ export const Students = ({ data, setData, onSelectStudent }) => {
     };
 
     const filteredStudents = (data.students || []).filter(s => {
+        const searchLower = searchTerm.toLowerCase();
+        const matchesSearch = !searchTerm || 
+            (s.name && s.name.toLowerCase().includes(searchLower)) ||
+            (s.admissionNo && s.admissionNo.toLowerCase().includes(searchLower)) ||
+            (s.grade && s.grade.toLowerCase().includes(searchLower)) ||
+            (s.stream && s.stream.toLowerCase().includes(searchLower)) ||
+            (s.parentContact && s.parentContact.toString().includes(searchTerm));
+        
+        if (!matchesSearch) return false;
+        
         const matchesGrade = filterGrade === 'ALL' || s.grade === filterGrade;
         const matchesStream = filterStream === 'ALL' || s.stream === filterStream;
 
@@ -167,7 +178,7 @@ export const Students = ({ data, setData, onSelectStudent }) => {
         const feeStructure = data.settings.feeStructures?.find(f => f.grade === s.grade);
         const selectedKeys = s.selectedFees || ['t1', 't2', 't3'];
         const totalDue = (Number(s.previousArrears) || 0) + (feeStructure ? selectedKeys.reduce((sum, key) => sum + (feeStructure[key] || 0), 0) : 0);
-        const totalPaid = (data.payments || []).filter(p => p.studentId === s.id).reduce((sum, p) => sum + Number(p.amount), 0);
+        const totalPaid = (data.payments || []).filter(p => String(p.studentId) === String(s.id)).reduce((sum, p) => sum + Number(p.amount), 0);
         const balance = totalDue - totalPaid;
 
         if (filterFinance === 'FULL') return matchesGrade && matchesStream && balance <= 0 && totalDue > 0;
@@ -182,12 +193,25 @@ export const Students = ({ data, setData, onSelectStudent }) => {
             <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
                     <h2 class="text-2xl font-bold">Students Directory</h2>
-                    <p class="text-slate-500 text-sm">Manage student enrollment and registration data</p>
+                    <p class="text-slate-500 text-sm">
+                        ${(data.students || []).length} total students
+                        ${searchTerm ? ` | ${filteredStudents.length} matches` : ''}
+                    </p>
                 </div>
                 ${syncStatus && html`
                     <span class="text-xs font-bold ${syncStatus.includes('✓') ? 'text-green-600' : 'text-blue-600'}">${syncStatus}</span>
                 `}
                 <div class="flex flex-wrap gap-2 no-print w-full md:w-auto">
+                    <div class="relative">
+                        <input 
+                            type="text"
+                            placeholder="Search name, admission, contact..."
+                            class="bg-white border border-slate-200 text-slate-600 px-4 py-2 pl-10 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 w-full md:w-64"
+                            value=${searchTerm}
+                            onInput=${(e) => setSearchTerm(e.target.value)}
+                        />
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
+                    </div>
                     <select 
                         class="bg-white border border-slate-200 text-slate-600 px-4 py-2 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500"
                         value=${filterGrade}

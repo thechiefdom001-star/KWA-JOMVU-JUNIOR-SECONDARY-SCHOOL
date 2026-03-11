@@ -52,6 +52,13 @@ function initializeSheets() {
     attendanceSheet.appendRow(ATTENDANCE_HEADERS);
   }
   
+  // Create Activity sheet
+  let activitySheet = ss.getSheetByName(SHEET_NAMES.ACTIVITY);
+  if (!activitySheet) {
+    activitySheet = ss.insertSheet(SHEET_NAMES.ACTIVITY);
+    activitySheet.appendRow(['device', 'lastActivity', 'timestamp']);
+  }
+  
   return { success: true, message: 'Sheets initialized successfully' };
 }
 
@@ -158,6 +165,12 @@ function doGet(e) {
         
       case 'ping':
         response = { success: true, message: 'EduTrack Google Sync is active!', timestamp: new Date().toISOString() };
+        break;
+        
+      case 'setActive':
+        const device = e.parameter.device;
+        const timestamp = e.parameter.timestamp;
+        response = setActiveUser(device, timestamp);
         break;
         
       default:
@@ -322,7 +335,19 @@ function getAllRecords(sheetName, headers) {
   return data.map(row => {
     let obj = {};
     headers.forEach((header, index) => {
-      obj[header] = row[index];
+      let value = row[index];
+      
+      // Clean corrupted selectedFees values (Java object references)
+      if (header === 'selectedFees' && typeof value === 'string' && value.includes('java.lang.Object')) {
+        value = 't1,t2,t3'; // Default format
+      }
+      
+      // Ensure all values are properly serializable (convert objects/arrays to strings)
+      if (value && typeof value === 'object') {
+        value = String(value).includes('java.lang') ? '' : JSON.stringify(value);
+      }
+      
+      obj[header] = value;
     });
     return obj;
   });
@@ -570,21 +595,24 @@ function setActiveUser(deviceName, timestamp) {
     
     const now = new Date(timestamp ? parseInt(timestamp) : Date.now());
     const nowStr = now.toISOString();
+    const ts = timestamp ? parseInt(timestamp) : Date.now();
     
     if (deviceRow > 0) {
-      activitySheet.getRange(deviceRow + 1, 2, 1, 2).setValues([[nowStr, timestamp || Date.now().toString()]]);
+      // Update existing row
+      activitySheet.getRange(deviceRow + 1, 2, 1, 2).setValues([[nowStr, ts.toString()]]);
     } else {
-      activitySheet.appendRow([deviceName, nowStr, timestamp || Date.now().toString()]);
+      // Add new row
+      activitySheet.appendRow([deviceName, nowStr, ts.toString()]);
     }
     
-    return { success: true, message: 'Active status updated' };
+    return { success: true, message: 'Active status updated', device: deviceName };
   } catch (error) {
     return { success: false, error: error.message };
   }
 }
 
 /**
- * Get active users - count users active in last 5 minutes
+ * Get active users - returns users active in last 5 minutes with details
  */
 function getActiveUsers() {
   try {
@@ -592,7 +620,7 @@ function getActiveUsers() {
     let activitySheet = ss.getSheetByName(SHEET_NAMES.ACTIVITY);
     
     if (!activitySheet) {
-      return { success: true, activeCount: 0, lastActivity: null };
+      return { success: true, activeCount: 0, activeUsers: [], lastActivity: null };
     }
     
     const data = activitySheet.getDataRange().getValues();
@@ -602,23 +630,32 @@ function getActiveUsers() {
     const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
     let activeCount = 0;
     let lastActivity = null;
+    const activeUsers = [];
     
     rows.forEach(row => {
       const timestamp = parseInt(row[2]);
       if (timestamp && timestamp > fiveMinutesAgo) {
         activeCount++;
+        activeUsers.push({
+          device: String(row[0] || 'Unknown Device'),
+          lastActivity: row[1] ? new Date(row[1]).toISOString() : new Date(timestamp).toISOString(),
+          timestamp: timestamp
+        });
         if (!lastActivity || timestamp > parseInt(lastActivity)) {
           lastActivity = timestamp;
         }
       }
     });
     
+    // Sort by most recent first
+    activeUsers.sort((a, b) => b.timestamp - a.timestamp);
     return { 
       success: true, 
-      activeCount: activeCount, 
+      activeCount: activeCount,
+      activeUsers: activeUsers,
       lastActivity: lastActivity ? lastActivity.toString() : null 
     };
   } catch (error) {
-    return { success: false, activeCount: 0, error: error.message };
+    return { success: false, activeCount: 0, activeUsers: [], error: error.message };
   }
 }

@@ -49,17 +49,7 @@ const App = () => {
         const browserInfo = /Firefox|Safari|Chrome|Edge/.exec(navigator.userAgent)?.[0] || 'Browser';
         const newDeviceId = `${userRole}@${username}-${browserInfo}`;
         
-        console.log('👤 Device ID calculation:', { 
-            loginUsername, 
-            storedUsername, 
-            finalUsername: username,
-            isAdmin,
-            userRole,
-            newDeviceId 
-        });
-        
         setDeviceId(newDeviceId);
-        console.log('👤 Device ID updated:', newDeviceId);
     }, [loginUsername, isAdmin]);
 
     // Initialize login state from localStorage on app load
@@ -67,12 +57,10 @@ const App = () => {
         const storedUsername = localStorage.getItem('et_login_username');
         if (storedUsername) {
             setLoginUsername(storedUsername);
-            console.log('👤 Restored login session for:', storedUsername);
         }
     }, []);
 
     useEffect(() => {
-        console.log('💾 Saving to localStorage, students:', data?.students?.length);
         Storage.save(data);
     }, [data]);
 
@@ -130,29 +118,15 @@ const App = () => {
 
     // Track user activity - update active status periodically
     useEffect(() => {
-        console.log('🔍 Activity tracking check:', { 
-            hasUrl: !!data?.settings?.googleScriptUrl,
-            deviceId: deviceId,
-            isGuest: deviceId?.includes('guest')
-        });
-        
-        if (!data?.settings?.googleScriptUrl || !deviceId) {
-            console.log('⏭️ Skipping tracking - no URL or deviceId');
-            return;
-        }
-        
-        if (deviceId.includes('guest')) {
-            console.log('⏭️ Skipping tracking - guest user');
-            return;
-        }
+        if (!data?.settings?.googleScriptUrl || !deviceId) return;
+        if (deviceId.includes('guest')) return;
 
         const trackUserActivity = async () => {
             try {
                 googleSheetSync.setSettings(data.settings);
-                const result = await googleSheetSync.setActiveUser(deviceId);
-                console.log('📍 User activity tracked:', deviceId, 'Result:', result);
+                await googleSheetSync.setActiveUser(deviceId);
             } catch (error) {
-                console.error('❌ Error tracking activity:', error);
+                console.warn('Activity tracking error:', error);
             }
         };
 
@@ -203,7 +177,7 @@ const App = () => {
         const sheetStudents = sheetData.students || [];
         const sheetMap = new Map(sheetStudents.map(s => {
             const cleaned = { ...s, selectedFees: Storage.parseSelectedFees(s.selectedFees) };
-            return [s.admissionNo?.trim() || '', cleaned];
+            return [(s.admissionNo ? String(s.admissionNo).trim() : ''), cleaned];
         }));
         
         const sheetAssess = sheetData.assessments || [];
@@ -219,10 +193,35 @@ const App = () => {
         const assessmentsToSync = [];
         const attendanceToSync = [];
 
+        const isStudentEqual = (local, remote) => {
+            if (!remote) return false;
+            if (local.name !== remote.name) return false;
+            if (local.grade !== remote.grade) return false;
+            if (local.stream !== remote.stream) return false;
+            if (local.parentContact !== remote.parentContact) return false;
+            if (String(local.previousArrears || '0') !== String(remote.previousArrears || '0')) return false;
+            
+            const localFees = (local.selectedFees || []).slice().sort().join(',');
+            const remoteFees = (remote.selectedFees || []).slice().sort().join(',');
+            if (localFees !== remoteFees) return false;
+            
+            return true;
+        };
+
+        const isAssessmentEqual = (local, remote) => {
+            if (!remote) return false;
+            return String(local.score) === String(remote.score) && String(local.level) === String(remote.level);
+        };
+
+        const isAttendanceEqual = (local, remote) => {
+            if (!remote) return false;
+            return String(local.status) === String(remote.status);
+        };
+
         for (const s of (data.students || [])) {
-            const admNo = s.admissionNo?.trim() || '';
+            const admNo = s.admissionNo ? String(s.admissionNo).trim() : '';
             const remote = sheetMap.get(admNo);
-            if (!remote || JSON.stringify(s) !== JSON.stringify({...remote, id: s.id})) {
+            if (!isStudentEqual(s, remote)) {
                 studentsToSync.push(s);
             }
         }
@@ -230,7 +229,7 @@ const App = () => {
         for (const a of (data.assessments || [])) {
             const key = `${a.studentId}-${a.subject}-${a.term}-${a.examType}-${a.academicYear}`;
             const remote = assessMap.get(key);
-            if (!remote || JSON.stringify(a) !== JSON.stringify(remote)) {
+            if (!isAssessmentEqual(a, remote)) {
                 assessmentsToSync.push(a);
             }
         }
@@ -238,12 +237,10 @@ const App = () => {
         for (const a of (data.attendance || [])) {
             const key = `${a.studentId}-${a.date}`;
             const remote = attMap.get(key);
-            if (!remote || JSON.stringify(a) !== JSON.stringify(remote)) {
+            if (!isAttendanceEqual(a, remote)) {
                 attendanceToSync.push(a);
             }
         }
-
-        console.log('   ⚡ BULK SYNC (parallel):', {students: studentsToSync.length, assessments: assessmentsToSync.length, attendance: attendanceToSync.length});
 
         // Push ALL in parallel using bulk operations
         const syncPromises = [];
@@ -366,30 +363,19 @@ const App = () => {
             googleSheetSync.setSettings(data.settings);
             try {
                 let result = await googleSheetSync.fetchAll();
-                console.log('Auto-sync fetch result:', result.success, result.students?.length);
                 
                 if (result.success && (result.students?.length > 0 || result.assessments?.length > 0)) {
-                    console.log('Condition met, proceeding with sync...');
-                    // push any pending local records first
+                    // Push any pending local records first
                     try {
-                        console.log('📤 Auto-sync: Pushing local data to Google...');
                         await pushLocalToGoogle(result);
-                        console.log('✅ Auto-sync: Push to Google completed');
                     } catch (pushError) {
-                        console.error('❌ Auto-sync: Error pushing to Google:', pushError);
-                        // Don't stop sync, continue with pull
+                        console.warn('Push to Google failed, continuing with pull:', pushError.message);
                     }
                     
-                    // refetch after pushing
+                    // Refetch after pushing
                     result = await googleSheetSync.fetchAll();
-                    console.log('Auto-sync after push:', result.students?.length, 'students');
                     
                     // Replace local data with Google data (clean sync)
-                    console.log('🔄 Auto-sync: Before replaceWithGoogleData:', {
-                        localStudents: data.students?.length,
-                        googleStudents: result.students?.length
-                    });
-                    
                     try {
                         const merged = Storage.replaceWithGoogleData(data, {
                             students: result.students,
@@ -397,19 +383,17 @@ const App = () => {
                             attendance: result.attendance
                         });
                         
-                        console.log('✅ Auto-sync: After replaceWithGoogleData:', merged.students?.length, 'students');
-                        console.log('📢 Auto-sync: Calling setData with students:', merged.students?.length);
                         setData(merged);
                         setGoogleSyncStatus(`✓ Loaded ${merged.students?.length || 0} students, ${result.assessments?.length || 0} marks`);
                     } catch (mergeError) {
-                        console.error('❌ Auto-sync: Error merging data:', mergeError);
+                        console.error('Error merging data:', mergeError);
                         setGoogleSyncStatus('');
                     }
                 } else {
                     setGoogleSyncStatus('');
                 }
             } catch (e) {
-                console.log('Auto-sync skipped:', e.message);
+                console.warn('Auto-sync skipped:', e.message);
                 setGoogleSyncStatus('');
             }
         };

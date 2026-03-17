@@ -1,6 +1,8 @@
 import { h } from 'preact';
 import { useState } from 'preact/hooks';
 import htm from 'htm';
+import { Pagination } from '../lib/pagination.js';
+import { PaginationControls } from './Pagination.js';
 
 const html = htm.bind(h);
 
@@ -16,6 +18,8 @@ export const Teachers = ({ data = {}, setData = () => {} }) => {
     
     const [showAdd, setShowAdd] = useState(false);
     const [editingId, setEditingId] = useState(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(10);
     const [newTeacher, setNewTeacher] = useState({ 
         name: '', 
         contact: '', 
@@ -82,6 +86,18 @@ export const Teachers = ({ data = {}, setData = () => {} }) => {
     };
 
     const teachers = teachersList;
+
+    // Pagination
+    const handlePageChange = (newPage, newItemsPerPage) => {
+        if (newItemsPerPage) {
+            setItemsPerPage(newItemsPerPage);
+            setCurrentPage(1);
+        } else {
+            setCurrentPage(newPage);
+        }
+    };
+
+    const paginatedTeachers = Pagination.getPageItems(teachers, currentPage, itemsPerPage);
 
     return html`
         <div class="space-y-6">
@@ -204,16 +220,16 @@ export const Teachers = ({ data = {}, setData = () => {} }) => {
                                 <th class="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase no-print">Actions</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-slate-50">
-                            ${teachers.map(t => html`
+                        <tbody class="divide-y divide-slate-50 teachers-screen-rows">
+                            ${paginatedTeachers.map(t => html`
                                 <tr key=${t.id} class="hover:bg-slate-100 transition-colors even:bg-slate-50">
                                     <td class="px-6 py-4">
                                         <div class="font-bold text-sm">${t.name}</div>
-                                        ${t.isClassTeacher && html`
+                                        ${t.isClassTeacher ? html`
                                             <div class="text-[9px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full inline-block font-black uppercase mt-1">
                                                 Class Teacher: ${t.classTeacherGrade}
                                             </div>
-                                        `}
+                                        ` : ''}
                                     </td>
                                     <td class="px-6 py-4">
                                         <div class="text-xs font-mono text-slate-600">${t.employeeNo || t.id}</div>
@@ -221,14 +237,14 @@ export const Teachers = ({ data = {}, setData = () => {} }) => {
                                     <td class="px-6 py-4 text-slate-600 text-sm font-medium">${t.contact || 'N/A'}</td>
                                     <td class="px-6 py-4">
                                         <div class="flex flex-wrap gap-1">
-                                            ${(t.subjects || t.subject || '').split(',').map(s => html`
+                                            ${(t.subjects || t.subject || '').split(',').filter(x=>x).map(s => html`
                                                 <span class="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-[10px] font-bold uppercase">${s.trim()}</span>
                                             `)}
                                         </div>
                                     </td>
                                     <td class="px-6 py-4">
                                         <div class="flex flex-wrap gap-1">
-                                            ${(t.grades || t.grade || '').split(',').map(g => html`
+                                            ${(t.grades || t.grade || '').split(',').filter(x=>x).map(g => html`
                                                 <span class="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase">${g.trim()}</span>
                                             `)}
                                         </div>
@@ -241,9 +257,56 @@ export const Teachers = ({ data = {}, setData = () => {} }) => {
                                     </td>
                                 </tr>
                             `)}
-                            ${teachers.length === 0 && html`<tr><td colspan="4" class="p-12 text-center text-slate-300">No teachers registered yet.</td></tr>`}
+                            ${teachers.length === 0 ? html`<tr><td colspan="6" class="p-12 text-center text-slate-300">No teachers registered yet.</td></tr>` : ''}
+                        </tbody>
+                        <!-- Print view: All teachers (hidden on screen, visible in print) -->
+                        <tbody class="divide-y divide-slate-50 teachers-print-rows" style="display:none">
+                            ${teachers.map(t => html`
+                                <tr key=${t.id} class="hover:bg-slate-100 transition-colors even:bg-slate-50">
+                                    <td class="px-6 py-4">
+                                        <div class="font-bold text-sm">${t.name}</div>
+                                        ${t.isClassTeacher ? html`
+                                            <div class="text-[9px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full inline-block font-black uppercase mt-1">
+                                                Class Teacher: ${t.classTeacherGrade}
+                                            </div>
+                                        ` : ''}
+                                    </td>
+                                    <td class="px-6 py-4">
+                                        <div class="text-xs font-mono text-slate-600">${t.employeeNo || t.id}</div>
+                                    </td>
+                                    <td class="px-6 py-4 text-slate-600 text-sm font-medium">${t.contact || 'N/A'}</td>
+                                    <td class="px-6 py-4">
+                                        <div class="flex flex-wrap gap-1">
+                                            ${(t.subjects || t.subject || '').split(',').filter(x=>x).map(s => html`
+                                                <span class="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-[10px] font-bold uppercase">${s.trim()}</span>
+                                            `)}
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4">
+                                        <div class="flex flex-wrap gap-1">
+                                            ${(t.grades || t.grade || '').split(',').filter(x=>x).map(g => html`
+                                                <span class="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase">${g.trim()}</span>
+                                            `)}
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 no-print">
+                                        <div class="flex gap-2">
+                                            <button onClick=${() => handleEdit(t)} class="text-blue-600 text-[10px] font-bold uppercase hover:underline">Edit</button>
+                                            <button onClick=${() => handleDelete(t.id)} class="text-red-500 text-[10px] font-bold uppercase hover:underline">Delete</button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            `)}
                         </tbody>
                     </table>
+                    ${teachers.length > 0 && html`
+                        ${h(PaginationControls, {
+                            currentPage,
+                            onPageChange: handlePageChange,
+                            totalItems: teachers.length,
+                            itemsPerPage
+                        })}
+                    `}
                 </div>
 
                 <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm no-print">

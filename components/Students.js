@@ -1,8 +1,10 @@
 import { h } from 'preact';
-import { useState } from 'preact/hooks';
+import { useState, useEffect } from 'preact/hooks';
 import htm from 'htm';
 import { Storage } from '../lib/storage.js';
 import { googleSheetSync } from '../lib/googleSheetSync.js';
+import { Pagination } from '../lib/pagination.js';
+import { PaginationControls } from './Pagination.js';
 
 const html = htm.bind(h);
 
@@ -13,11 +15,18 @@ export const Students = ({ data, setData, onSelectStudent }) => {
     const [filterStream, setFilterStream] = useState('ALL');
     const [filterFinance, setFilterFinance] = useState('ALL');
     const [searchTerm, setSearchTerm] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(10);
+
+    // Reset to page 1 when data changes
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [data.students?.length]);
 
     // Get hidden fee items from settings (per grade group)
     const hiddenFeeItems = data.settings?.hiddenFeeItems || {};
     const allHiddenFees = Object.values(hiddenFeeItems).flat();
-    
+
     // Filter out hidden fee items
     const defaultFeeOptions = [
         { key: 'admission', label: 'Admission' }, { key: 'diary', label: 'Diary' }, { key: 'development', label: 'Development' },
@@ -48,7 +57,7 @@ export const Students = ({ data, setData, onSelectStudent }) => {
 
     const [editingId, setEditingId] = useState(null);
     const streams = data.settings.streams || ['A', 'B', 'C'];
-    
+
     const [newStudent, setNewStudent] = useState({
         name: '',
         grade: data.settings.grades[0] || 'GRADE 1',
@@ -74,16 +83,17 @@ export const Students = ({ data, setData, onSelectStudent }) => {
             setData({ ...data, students: updated });
             setEditingId(null);
 
-            // also sync update to Google
+            // Sync update to Google Sheet (update in-place, not add new row)
             if (data.settings.googleScriptUrl) {
-                setSyncStatus('Updating Google...');
+                setSyncStatus('Updating Google Sheet...');
                 googleSheetSync.setSettings(data.settings);
-                const resp = await googleSheetSync.pushStudent(filteredStudent);
+                const resp = await googleSheetSync.updateRecord('Students', filteredStudent);
                 if (!resp.success) {
-                    console.warn('Failed to update student on Google:', resp.error);
+                    // Fallback: push as new record if updateRecord fails (e.g. row not found)
+                    await googleSheetSync.pushStudent(filteredStudent);
                 }
-                setSyncStatus('✓ Synced!');
-                setTimeout(() => setSyncStatus(''), 2000);
+                setSyncStatus('✓ Updated in Sheet!');
+                setTimeout(() => setSyncStatus(''), 2500);
             }
         } else {
             const id = Date.now().toString();
@@ -162,16 +172,29 @@ export const Students = ({ data, setData, onSelectStudent }) => {
         alert(`${student.name} promoted to ${nextGrade}. Arrears: ${data.settings.currency} ${financials.balance.toLocaleString()}`);
     };
 
-    const handleDelete = (id) => {
-        if (confirm('Are you sure you want to delete this student? This will not remove their payment history but they will no longer appear in active lists.')) {
-            setData({ ...data, students: data.students.filter(s => s.id !== id) });
+    const handleDelete = async (id) => {
+        const student = data.students.find(s => s.id === id);
+        if (!student) return;
+
+        if (!confirm(`Delete ${student.name}? This student and their assessments will be removed from local data. This action also removes them from the Google Sheet if connected.`)) return;
+
+        // Remove locally
+        setData({ ...data, students: data.students.filter(s => s.id !== id) });
+
+        // Delete from Google Sheet
+        if (data.settings.googleScriptUrl) {
+            setSyncStatus('Deleting from Sheet...');
+            googleSheetSync.setSettings(data.settings);
+            const resp = await googleSheetSync.deleteStudent(id);
+            setSyncStatus(resp.success ? '✓ Deleted from Sheet!' : '⚠ Local deleted, Sheet sync pending');
+            setTimeout(() => setSyncStatus(''), 3000);
         }
     };
 
     const toggleFee = (key) => {
         // Don't allow toggling hidden fees
         if (allHiddenFees.includes(key)) return;
-        
+
         const current = newStudent.selectedFees || [];
         const updated = current.includes(key)
             ? current.filter(k => k !== key)
@@ -181,15 +204,15 @@ export const Students = ({ data, setData, onSelectStudent }) => {
 
     const filteredStudents = (data.students || []).filter(s => {
         const searchLower = searchTerm.toLowerCase();
-        const matchesSearch = !searchTerm || 
+        const matchesSearch = !searchTerm ||
             (s.name && s.name.toLowerCase().includes(searchLower)) ||
             (s.admissionNo && s.admissionNo.toLowerCase().includes(searchLower)) ||
             (s.grade && s.grade.toLowerCase().includes(searchLower)) ||
             (s.stream && s.stream.toLowerCase().includes(searchLower)) ||
             (s.parentContact && s.parentContact.toString().includes(searchTerm));
-        
+
         if (!matchesSearch) return false;
-        
+
         const matchesGrade = filterGrade === 'ALL' || s.grade === filterGrade;
         const matchesStream = filterStream === 'ALL' || s.stream === filterStream;
 
@@ -208,6 +231,19 @@ export const Students = ({ data, setData, onSelectStudent }) => {
         return matchesGrade && matchesStream;
     });
 
+    // Pagination
+    const handlePageChange = (newPage, newItemsPerPage) => {
+        if (newItemsPerPage) {
+            setItemsPerPage(newItemsPerPage);
+            setCurrentPage(1);
+        } else {
+            setCurrentPage(newPage);
+        }
+    };
+
+    const safeFilteredStudents = filteredStudents || [];
+    const paginatedStudents = Pagination.getPageItems(safeFilteredStudents, currentPage, itemsPerPage);
+
     return html`
         <div class="space-y-6">
             <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -215,7 +251,7 @@ export const Students = ({ data, setData, onSelectStudent }) => {
                     <h2 class="text-2xl font-bold">Students Directory</h2>
                     <p class="text-slate-500 text-sm">
                         ${(data.students || []).length} total students
-                        ${searchTerm ? ` | ${filteredStudents.length} matches` : ''}
+                        ${searchTerm ? ` | ${safeFilteredStudents.length} matches` : ''}
                     </p>
                 </div>
                 ${syncStatus && html`
@@ -403,9 +439,10 @@ export const Students = ({ data, setData, onSelectStudent }) => {
             `}
 
             <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-x-auto no-scrollbar">
-                <table class="w-full text-left min-w-[800px]">
+                <table class="w-full text-left min-w-[800px] students-print-table">
                     <thead class="bg-slate-50 border-b border-slate-100">
                         <tr>
+                            <th class="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase">#</th>
                             <th class="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase">Name</th>
                             <th class="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase">Adm No</th>
                             <th class="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase">Adm Date</th>
@@ -417,8 +454,13 @@ export const Students = ({ data, setData, onSelectStudent }) => {
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-50">
-                        ${filteredStudents.map(student => html`
-                            <tr key=${student.id} class="hover:bg-slate-100 transition-colors even:bg-slate-50">
+                        ${(
+                            /* On screen: show paginated slice. On print: all rows rendered,
+                               CSS hides the screen-subset and shows the full-list tbody */
+                            paginatedStudents
+                        ).map((student, idx) => html`
+                            <tr key=${student.id} class="hover:bg-slate-100 transition-colors even:bg-slate-50 students-screen-row">
+                                <td class="px-6 py-4 text-slate-400 text-xs font-mono">${(currentPage - 1) * itemsPerPage + idx + 1}</td>
                                 <td class="px-6 py-4">
                                     <div class="font-bold text-sm">${student.name}</div>
                                     <div class="text-[9px] text-slate-400 uppercase">${student.stream || 'No Stream'}</div>
@@ -474,9 +516,44 @@ export const Students = ({ data, setData, onSelectStudent }) => {
                             </tr>
                         `)}
                     </tbody>
+                    <!-- Full data tbody: hidden on screen, visible during print -->
+                    <tbody class="students-print-rows" style="display:none">
+                        ${filteredStudents.map((student, idx) => html`
+                            <tr key=${`print-${student.id}`} class="even:bg-slate-50">
+                                <td class="px-4 py-2 text-slate-400 text-xs font-mono">${idx + 1}</td>
+                                <td class="px-4 py-2">
+                                    <div class="font-bold text-sm">${student.name}</div>
+                                    <div class="text-[9px] text-slate-400 uppercase">${student.stream || 'No Stream'}</div>
+                                </td>
+                                <td class="px-4 py-2 text-slate-500 text-sm font-mono">${student.admissionNo}</td>
+                                <td class="px-4 py-2 text-slate-500 text-xs font-mono">${student.admissionDate || '-'}</td>
+                                <td class="px-4 py-2 text-slate-500 text-xs font-mono">${student.upiNo || '-'}</td>
+                                <td class="px-4 py-2 text-slate-500 text-xs font-mono">${student.assessmentNo || '-'}</td>
+                                <td class="px-4 py-2 text-slate-700 text-xs font-bold">${student.parentContact || '-'}</td>
+                                <td class="px-4 py-2">
+                                    <div class="flex flex-col gap-1">
+                                        <span class="bg-slate-200 px-2 py-1 rounded text-[10px] font-bold uppercase whitespace-nowrap">${student.grade}${student.stream || ''}</span>
+                                        ${['GRADE 10', 'GRADE 11', 'GRADE 12'].includes(student.grade) && html`
+                                            <span class="text-[8px] font-black text-blue-600 uppercase tracking-tighter">
+                                                ${student.seniorPathway ? student.seniorPathway.replace(/([A-Z])/g, ' $1') : 'No Pathway'}
+                                            </span>
+                                        `}
+                                    </div>
+                                </td>
+                            </tr>
+                        `)}
+                    </tbody>
                 </table>
-                ${filteredStudents.length === 0 && html`
+                ${safeFilteredStudents.length === 0 && html`
                     <div class="p-12 text-center text-slate-300">No students found matching current filters.</div>
+                `}
+                ${safeFilteredStudents.length > 0 && html`
+                    <${PaginationControls}
+                        currentPage=${currentPage}
+                        onPageChange=${handlePageChange}
+                        totalItems=${safeFilteredStudents.length}
+                        itemsPerPage=${itemsPerPage}
+                    />
                 `}
             </div>
         </div>
